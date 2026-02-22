@@ -3,6 +3,10 @@ import React, { useState } from 'react';
 function DayByDaySchedule({ tasks }) {
   const [weekOffset, setWeekOffset] = useState(0);
   
+  // finds the date --> just highlighting the current date
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
   // Group tasks by date
   const tasksByDate = {};
   
@@ -30,7 +34,36 @@ function DayByDaySchedule({ tasks }) {
   const totalWeeks = Math.ceil(allDates.length / daysPerWeek);
   const startIdx = weekOffset * daysPerWeek;
   const endIdx = Math.min(startIdx + daysPerWeek, allDates.length);
-  const currentWeekDates = allDates.slice(startIdx, endIdx);
+
+
+  // only built using dates from task that exist, so if no task exists for a date
+  // then no date exists in calendar
+  
+  // const currentWeekDates = allDates.slice(startIdx, endIdx);
+
+  const getSunday = (offset) => {
+    const now = new Date();
+    // want to change now to previous or next beginning of the week dpeending on input
+    now.setDate(now.getDate() + (offset * 7));
+    const dayOfWeek = now.getDay();
+    const diff = now.getDate() - dayOfWeek;
+
+    const sunday = new Date(now.setDate(diff));
+    sunday.setHours(0,0,0,0);
+    return sunday;
+  };
+
+  const startOfViewWeek = getSunday(weekOffset);
+
+  const currentWeekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const nextDay = new Date(startOfViewWeek);
+    nextDay.setDate(startOfViewWeek.getDate() + i);
+
+    const dateStr = nextDay.toISOString().split('T')[0];
+    currentWeekDates.push(dateStr);
+  }
+
   
   // Format date for column header
   const formatDateHeader = (dateStr) => {
@@ -51,11 +84,37 @@ function DayByDaySchedule({ tasks }) {
     return `${displayHour}:${displayMinutes}${ampm}`;
   };
   
+
+  // removing pickup/dropoff differentiation in schedule view
+  // const mergedTasks = tasks.reduce((acc, currentTask) =>
+  // {
+  //   const name = currentTask.task_name.toLowerCase();
+  //   if (name.includes('pickup') || name.includes('dropoff')) {
+  //     // finding travel task closest in time to pickup/dropoff
+  //     const travelTask = acc.find(t =>
+  //       t.task_name.toLowerCase().includes('travel') && 
+  //       Math.abs(new Date(t.start_lb) - new Date(currentTask.start_lb)) < 3600000
+  //       );
+  //     if (travelTask) {
+  //       travelTask.rideDetails = (travelTask.rideDetails ? travelTask.rideDetails + ", " : "") + currentTask.task_name;
+  //       return acc;
+  //     }
+  //   }
+  //   acc.push(currentTask);
+  //   return acc;
+  // }, []);
+
+
   // Get task color based on task name
   const getTaskColor = (taskName) => {
+    // gray one
     if (taskName.includes('travel')) return '#94a3b8';
+    // yellow one
     if (taskName.includes('pickup') || taskName.includes('dropoff')) return '#f59e0b';
-    return '#3b82f6';
+    
+    
+    //default blue
+    return '#3b82f6'; 
   };
   
   // Calculate position based on time (8am = 0, midnight = 16 hours)
@@ -79,29 +138,34 @@ function DayByDaySchedule({ tasks }) {
   };
   
   return (
+    // navigating different weeks in the calendar
     <div className="calendar-view">
       {/* Week navigation */}
-      {totalWeeks > 1 && (
+      
         <div className="week-navigation">
           <button 
             className="week-nav-btn"
-            onClick={() => setWeekOffset(Math.max(0, weekOffset - 1))}
-            disabled={weekOffset === 0}
+            onClick={() => setWeekOffset(weekOffset - 1)}
+            // disabled={weekOffset === 0}
           >
             ← Previous Week
           </button>
           <span className="week-indicator">
-            Week {weekOffset + 1} of {totalWeeks}
+            {/* Week {weekOffset + 1} of {totalWeeks} */}
+            {startOfViewWeek.toLocaleDateString('en-US', { 
+              month: 'long', 
+              year: 'numeric' 
+            })}
           </span>
           <button 
             className="week-nav-btn"
-            onClick={() => setWeekOffset(Math.min(totalWeeks - 1, weekOffset + 1))}
-            disabled={weekOffset >= totalWeeks - 1}
+            onClick={() => setWeekOffset(weekOffset + 1)}
+            // disabled={weekOffset >= totalWeeks - 1}
           >
             Next Week →
           </button>
         </div>
-      )}
+
       
       {/* Calendar grid */}
       <div className="calendar-grid">
@@ -129,7 +193,9 @@ function DayByDaySchedule({ tasks }) {
             <div key={dateStr} className="day-column">
               <div className="day-header">
                 <div className="day-name">{dayName}</div>
-                <div className="day-number">{dayNum}</div>
+                {/* <div className="day-number">{dayNum}</div> */}
+                <div className={`day-number ${dateStr === todayStr ? 'today-highlight' : ''}`}>
+                  {dayNum}</div>
               </div>
               
               <div className="day-timeline">

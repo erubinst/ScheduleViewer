@@ -75,6 +75,36 @@ function App() {
     }
   };
 
+  // Load all resources' schedules from DB (everyone) for Gantt display
+  const loadAllResourceSchedules = async (userToken) => {
+    setGanttLoading(true);
+    setGanttError(null);
+    try {
+      const response = await fetch(`${API_URL}/api/all-resource-schedules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: userToken })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setAllResourcesSchedule({
+          tasks: data.tasks || [],
+          scenario_name: data.scenario_name || null,
+          resource_names: data.resource_names || []
+        });
+      } else {
+        setGanttError(data.error || 'Could not load events from database');
+        setAllResourcesSchedule({ tasks: [], scenario_name: null, resource_names: [] });
+      }
+    } catch (error) {
+      console.error('Failed to load all resource schedules:', error);
+      setGanttError('Could not reach the server. Is the backend running?');
+      setAllResourcesSchedule({ tasks: [], scenario_name: null, resource_names: [] });
+    } finally {
+      setGanttLoading(false);
+    }
+  };
+
   // Handle login
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -192,6 +222,48 @@ function App() {
     name: 'Current Schedule',
     tasks: []
   });
+
+  // Gantt: all events for everyone in the database, shown one day at a time (like the reference photo)
+  const [allResourcesSchedule, setAllResourcesSchedule] = useState({ tasks: [], scenario_name: null, resource_names: [] });
+  const [ganttLoading, setGanttLoading] = useState(false);
+  const [ganttError, setGanttError] = useState(null);
+  const [ganttSelectedDate, setGanttSelectedDate] = useState(null); // 'YYYY-MM-DD' for the single day shown
+
+  // When Gantt tab is open, load all resources' schedules from DB
+  useEffect(() => {
+    if (activeTab === 'gantt' && token) {
+      loadAllResourceSchedules(token);
+    }
+  }, [activeTab, token]);
+
+  // When we have new Gantt data, set selected day to the first date that has events (one day = one chart, like the photo)
+  const ganttDates = React.useMemo(() => {
+    const tasks = allResourcesSchedule.tasks || [];
+    const dateCounts = {};
+    tasks.forEach(t => {
+      if (t.start_lb) {
+        const d = new Date(t.start_lb).toISOString().slice(0, 10);
+        dateCounts[d] = (dateCounts[d] || 0) + 1;
+      }
+    });
+    return Object.keys(dateCounts).sort();
+  }, [allResourcesSchedule.tasks]);
+
+  useEffect(() => {
+    if (ganttDates.length > 0 && (ganttSelectedDate === null || !ganttDates.includes(ganttSelectedDate))) {
+      setGanttSelectedDate(ganttDates[0]);
+    }
+  }, [ganttDates, ganttSelectedDate]);
+
+  // Tasks for the selected single day only (so the chart label and bars match one day)
+  const ganttTasksForDay = React.useMemo(() => {
+    const tasks = allResourcesSchedule.tasks || [];
+    if (!ganttSelectedDate) return [];
+    return tasks.filter(t => {
+      if (!t.start_lb) return false;
+      return new Date(t.start_lb).toISOString().slice(0, 10) === ganttSelectedDate;
+    });
+  }, [allResourcesSchedule.tasks, ganttSelectedDate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -382,6 +454,12 @@ function App() {
           >
             View Schedule
           </button>
+          <button 
+            className={`tab-button ${activeTab === 'gantt' ? 'active' : ''}`}
+            onClick={() => handleTabChange('gantt')}
+          >
+            Gantt Chart
+          </button>
         </div>
 
         <button className="logout-button" onClick={handleLogout}>
@@ -538,6 +616,84 @@ function App() {
             )}
           </div>
         )
+      ) : activeTab === 'gantt' ? (
+        // GANTT CHART TAB — one day at a time, all people (like the reference photo)
+        <div className="view-schedule-container">
+          <div className="view-schedule-content">
+            <h1>Gantt Chart</h1>
+            <p className="schedule-subtitle">One day at a time — events from the database</p>
+            {allResourcesSchedule.scenario_name && (
+              <p className="gantt-scenario-hint">Scenario: {allResourcesSchedule.scenario_name}</p>
+            )}
+            <div className="current-schedule-card">
+              {ganttLoading ? (
+                <div className="empty-schedule">
+                  <p>Loading events from database…</p>
+                </div>
+              ) : ganttError ? (
+                <div className="empty-schedule gantt-error">
+                  <p><strong>Could not load events</strong></p>
+                  <p>{ganttError}</p>
+                  <p>Check that the backend is running and MongoDB is connected.</p>
+                </div>
+              ) : allResourcesSchedule.tasks && allResourcesSchedule.tasks.length > 0 ? (
+                <>
+                  <div className="gantt-day-nav">
+                    <span className="gantt-resource-count">
+                      {allResourcesSchedule.resource_names.length} people, {allResourcesSchedule.tasks.length} events in DB
+                    </span>
+                    {ganttDates.length > 1 && (
+                      <div className="gantt-day-buttons">
+                        <button
+                          type="button"
+                          className="gantt-day-btn"
+                          onClick={() => {
+                            const i = ganttDates.indexOf(ganttSelectedDate);
+                            if (i > 0) setGanttSelectedDate(ganttDates[i - 1]);
+                          }}
+                          disabled={ganttDates.indexOf(ganttSelectedDate) <= 0}
+                        >
+                          ← Previous day
+                        </button>
+                        <span className="gantt-day-label">
+                          {ganttSelectedDate ? new Date(ganttSelectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                        </span>
+                        <button
+                          type="button"
+                          className="gantt-day-btn"
+                          onClick={() => {
+                            const i = ganttDates.indexOf(ganttSelectedDate);
+                            if (i >= 0 && i < ganttDates.length - 1) setGanttSelectedDate(ganttDates[i + 1]);
+                          }}
+                          disabled={ganttDates.indexOf(ganttSelectedDate) >= ganttDates.length - 1}
+                        >
+                          Next day →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {ganttTasksForDay.length > 0 ? (
+                    <GanttChart
+                      tasks={ganttTasksForDay}
+                      dateLabel={ganttSelectedDate ? new Date(ganttSelectedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null}
+                      resourceOrder={allResourcesSchedule.resource_names}
+                    />
+                  ) : (
+                    <div className="empty-schedule">
+                      <p>No events on this day ({ganttSelectedDate}). Use Prev/Next to switch day.</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="empty-schedule">
+                  <p><strong>No events in the database</strong></p>
+                  <p>There are no documents in <code>resource_schedules</code> with tasks, or the collection is empty.</p>
+                  <p>Run your scheduler (e.g. <code>run_initial_schedule.py</code>) to populate the database.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       ) : (
         // VIEW SCHEDULE TAB
         <div className="view-schedule-container">
@@ -547,6 +703,7 @@ function App() {
             
             <div className="current-schedule-card">
               {currentSchedule.tasks && currentSchedule.tasks.length > 0 ? (
+                
                 <DayByDaySchedule tasks={currentSchedule.tasks} />
               ) : (
                 <div className="empty-schedule">

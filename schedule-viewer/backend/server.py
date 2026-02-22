@@ -28,7 +28,7 @@ app.json_encoder = CustomJSONEncoder
 # Configuration
 app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
 # MongoDB Atlas connection
-app.config['MONGO_URI'] = ''
+app.config['MONGO_URI'] = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
 
 # Initialize
 bcrypt = Bcrypt(app)
@@ -273,11 +273,16 @@ def get_current_schedule():
         )
         
         if schedule and schedule.get('tasks'):
-            # Return the tasks array
+            # Attach resource_name as person on each task for Gantt chart / multi-format frontend
+            resource_name = schedule.get('resource_name') or username
+            tasks_with_person = [
+                {**t, 'person': t.get('person') or resource_name}
+                for t in schedule['tasks']
+            ]
             return jsonify({
                 'username': username,
                 'scenario_name': schedule.get('scenario_name'),
-                'tasks': schedule['tasks']
+                'tasks': tasks_with_person
             }), 200
         else:
             # Return empty schedule
@@ -290,6 +295,51 @@ def get_current_schedule():
     except Exception as e:
         print(f"Get schedule error: {str(e)}")
         return jsonify({'error': 'Failed to retrieve schedule'}), 500
+
+
+@app.route('/api/all-resource-schedules', methods=['POST'])
+def get_all_resource_schedules():
+    """
+    Get schedules for every resource in the database (all events, everyone).
+    Used by the Gantt chart to show one row per person. No filtering by scenario.
+    Expects: { "token": "jwt" }
+    """
+    try:
+        data = request.json
+        token = data.get('token')
+
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+
+        # Always return everyone: latest document per resource_name (no scenario filter)
+        pipeline = [
+            {'$sort': {'created_at': -1}},
+            {'$group': {'_id': '$resource_name', 'doc': {'$first': '$$ROOT'}}},
+            {'$replaceRoot': {'newRoot': '$doc'}}
+        ]
+        docs = list(resource_schedules.aggregate(pipeline))
+
+        tasks_with_person = []
+        resource_names = []
+        for doc in docs:
+            rname = doc.get('resource_name') or doc.get('_id')
+            if not rname:
+                continue
+            resource_names.append(rname)
+            for t in doc.get('tasks') or []:
+                tasks_with_person.append({**t, 'person': t.get('person') or rname})
+
+        scenario_name = docs[0].get('scenario_name') if docs else None
+        return jsonify({
+            'scenario_name': scenario_name,
+            'resource_names': resource_names,
+            'tasks': tasks_with_person
+        }), 200
+
+    except Exception as e:
+        print(f"Get all schedules error: {str(e)}")
+        return jsonify({'error': 'Failed to retrieve schedules'}), 500
 
 
 # ======================= HELPER FUNCTIONS =======================
@@ -394,6 +444,7 @@ if __name__ == '__main__':
     print("  POST /api/schedule      - Create schedule options")
     print("  POST /api/save-schedule - Save selected schedule")
     print("  POST /api/current-schedule - Get user's current schedule")
+    print("  POST /api/all-resource-schedules - All resources (multi-person Gantt)")
     print("  GET  /health            - Health check")
     print("  GET  /api/users         - List all users (debug)")
     print("=" * 60)

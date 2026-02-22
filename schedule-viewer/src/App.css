@@ -187,7 +187,7 @@ body {
 }
 
 .day-header {
-  height: 80px;
+  height: 90px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -211,6 +211,14 @@ body {
   font-weight: 700;
   color: #2c3e50;
   margin-top: 4px;
+
+  /* Create a consistent 'hitbox' so headers stay aligned */
+  width: 40px; 
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
 .day-timeline {
@@ -265,6 +273,15 @@ body {
   font-size: 10px;
   opacity: 0.9;
   margin-top: 2px;
+}
+
+
+.day-number.today-highlight {
+  background-color: #3b82f6; 
+  color: white;              
+  border-radius: 50%;        
+  /* No extra width/height here; it inherits the 40px from above */
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3); /* Optional: adds a nice soft glow */
 }
 
 /* ==================== COMBINED HEADER (USER BAR + TABS) ==================== */
@@ -508,6 +525,81 @@ input::placeholder {
   gap: 8px;
 }
 
+.gantt-view-toggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+}
+.gantt-toggle-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.gantt-toggle-btn:first-of-type {
+  border-radius: 8px 0 0 8px;
+}
+.gantt-toggle-btn:last-of-type {
+  border-radius: 0 8px 8px 0;
+}
+.gantt-toggle-btn:hover {
+  background: #e2e8f0;
+}
+.gantt-toggle-btn.active {
+  background: #3498db;
+  color: white;
+  border-color: #3498db;
+}
+.gantt-scenario-hint {
+  font-size: 14px;
+  color: #64748b;
+  margin: -4px 0 12px 0;
+}
+.gantt-day-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.gantt-resource-count {
+  font-size: 14px;
+  color: #64748b;
+}
+.gantt-day-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gantt-day-btn {
+  padding: 8px 14px;
+  font-size: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.gantt-day-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+.gantt-day-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.gantt-day-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #334155;
+}
+.gantt-error {
+  text-align: left;
+}
+.gantt-error p {
+  margin: 8px 0;
+}
 .gantt-chart-container {
   margin-bottom: 30px;
   overflow-x: auto;
