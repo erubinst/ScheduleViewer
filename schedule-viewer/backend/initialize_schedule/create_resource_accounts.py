@@ -9,7 +9,7 @@ from datetime import datetime
 from flask import Flask
 
 # MongoDB connection (same as your backend)
-MONGO_URI = ''
+MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
 
 # Configuration
 SCENARIO_NAME = 'p3_w3_scenario'

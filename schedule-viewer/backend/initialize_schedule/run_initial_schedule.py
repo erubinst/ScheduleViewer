@@ -6,17 +6,37 @@ This creates the initial schedule for a scenario and stores it per resource
 from pymongo import MongoClient
 from datetime import datetime
 import json
-import tempfile
-import os
 
 # Import your scheduler
 from tds.executer import run_scheduler
 
 # MongoDB connection (same as your backend)
-MONGO_URI = ''
+MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
 
 # Configuration
 SCENARIO_NAME = 'p3_w3_scenario'
+
+
+def get_scenario(scenario_name):
+    """
+    Retrieve a scenario dict from MongoDB by scenario name
+    
+    Returns the scenario document or None if not found
+    """
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client.task_scheduler
+        scenarios = db.scenarios
+        
+        scenario = scenarios.find_one({'name': scenario_name})
+        return scenario
+    
+    except Exception as e:
+        print(f"❌ Error retrieving scenario: {str(e)}")
+        return None
+    finally:
+        if 'client' in locals():
+            client.close()
 
 
 def run_and_store_schedule():
@@ -33,7 +53,6 @@ def run_and_store_schedule():
     try:
         client = MongoClient(MONGO_URI)
         db = client.task_scheduler
-        scenarios = db.scenarios
         resource_schedules = db.resource_schedules
         
         # Test connection
@@ -45,11 +64,11 @@ def run_and_store_schedule():
     
     # Get the scenario
     print(f"\n🔍 Loading scenario '{SCENARIO_NAME}'...")
-    scenario = scenarios.find_one({'name': SCENARIO_NAME})
+    scenario = get_scenario(SCENARIO_NAME)
     
     if not scenario:
         print(f"❌ Scenario '{SCENARIO_NAME}' not found!")
-        print(f"\nMake sure you've run: python upload_scenario_standalone.py")
+        print(f"\nMake sure you've run: python upload_scenario.py")
         return False
     
     print(f"✅ Scenario loaded!")
@@ -70,32 +89,17 @@ def run_and_store_schedule():
     print(f"   Global start: {params.get('global_start')}")
     print(f"   Global end: {params.get('global_end')}")
     
-    # Create temporary files for the scheduler
-    print(f"\n📝 Creating temporary files for scheduler...")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        request_path = os.path.join(tmpdir, 'request.json')
-        travel_path = os.path.join(tmpdir, 'travel_matrix.json')
-        
-        # Write files
-        with open(request_path, 'w') as f:
-            json.dump(request_data, f, indent=2)
-        
-        with open(travel_path, 'w') as f:
-            json.dump(travel_matrix, f, indent=2)
-        
-        print(f"✅ Temporary files created")
-        
-        # Run the scheduler
-        print(f"\n🚀 Running scheduler...")
-        try:
-            df = run_scheduler(request_path, travel_path, epoch_date)
-            print(f"✅ Scheduler completed!")
-            print(f"   Generated {len(df)} schedule entries")
-        except Exception as e:
-            print(f"❌ Scheduler failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return False
+    # Run the scheduler with dict arguments
+    print(f"\n🚀 Running scheduler...")
+    try:
+        df = run_scheduler(request_data, travel_matrix, epoch_date)
+        print(f"✅ Scheduler completed!")
+        print(f"   Generated {len(df)} schedule entries")
+    except Exception as e:
+        print(f"❌ Scheduler failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
     
     # Show sample of results
     print(f"\n📊 Sample results:")

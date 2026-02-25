@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 
 # MongoDB connection (same as your backend)
-MONGO_URI = ''
+MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
 
 # Scenario configuration
 SCENARIO_NAME = 'p3_w3_scenario'
