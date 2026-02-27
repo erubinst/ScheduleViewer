@@ -593,7 +593,7 @@ function App() {
                     )}
                   </div>
 
-                  <GanttChart tasks={schedule.tasks} />
+                  <GanttChart tasks={schedule.tasks} /> //calling the func for every schedule?
 
                   <button
                     className={`select-button ${selectedSchedule === index ? 'selected' : ''}`}

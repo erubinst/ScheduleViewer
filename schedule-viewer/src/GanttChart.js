@@ -1,8 +1,12 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList } from 'recharts';
+// buildin gantt chart using stacked bar charts
 
-const HOUR_0 = 8;
-const MIDNIGHT_OFFSET = 16; // 8am → midnight (hours from 8am)
+const HOUR_0 = 5;
+// Minimum bar width (px) before we show the task name on the bar; set to 0 to always show
+const MIN_BAR_WIDTH_PX = 50;
+const MIDNIGHT_OFFSET = 19; // 8am → midnight (hours from 8am)
+const SEG_PREFIX = 'seg';
 
 // Same event-type differentiation as DayByDaySchedule (travel = gray, pickup/dropoff = yellow, else blue)
 function getTaskColor(taskName) {
@@ -13,7 +17,7 @@ function getTaskColor(taskName) {
   return '#1e3a8a';
 }
 
-function normalizeTask(task, defaultPerson) {
+function normalizeTask(task, defaultPerson) { //standardizing a task
   let start;
   let duration;
 
@@ -41,7 +45,7 @@ function normalizeTask(task, defaultPerson) {
   };
 }
 
-// Format decimal hours (0–16) as "HH:MM" (8:00–24:00)
+// Format decimal hours (0–16) as "HH:MM" (5:00–24:00)
 function formatTime(hoursFrom8am) {
   const totalMins = Math.round(hoursFrom8am * 60);
   const h = HOUR_0 + Math.floor(totalMins / 60);
@@ -57,6 +61,39 @@ function formatDuration(hours) {
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
+}
+
+// Renders the task name on the bar (always visible, no hover). Used as LabelList content.
+function renderBarLabel(segmentIndex, minWidthPx) {
+  return function BarLabelContent(props) {
+    const { value, payload, viewBox } = props;
+    const x = props.x ?? viewBox?.x ?? 0;
+    const y = props.y ?? viewBox?.y ?? 0;
+    const width = props.width ?? viewBox?.width ?? 0;
+    const height = props.height ?? viewBox?.height ?? 0;
+    if (!payload || value == null || value <= 0) return null;
+    const isGap = payload[`${SEG_PREFIX}${segmentIndex}_isGap`];
+    const name = payload[`${SEG_PREFIX}${segmentIndex}_name`];
+    if (isGap || !name) return null;
+    const barWidthPx = typeof width === 'number' && width > 0 ? width : 80;
+    if (barWidthPx < minWidthPx) return null;
+    const approxCharWidth = 7;
+    const maxChars = Math.max(2, Math.floor((barWidthPx - 12) / approxCharWidth));
+    const displayName = name.length <= maxChars ? name : name.slice(0, maxChars - 1) + '…';
+    return (
+      <text
+        x={x + 6}
+        y={y + height / 2}
+        dy={4}
+        fill="white"
+        fontSize={12}
+        fontWeight={500}
+        style={{ pointerEvents: 'none' }}
+      >
+        {displayName}
+      </text>
+    );
+  };
 }
 
 function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
@@ -76,7 +113,6 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
       : peopleFromData;
 
   // Build segment-based data so bars appear at correct times (gap + task, gap + task, ...)
-  const SEG_PREFIX = 'seg';
   let maxSegments = 0;
   const chartData = people.map(person => {
     const personTasks = normalized
@@ -199,7 +235,10 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
         <XAxis
           type="number"
           domain={[0, maxTime]}
-          ticks={[0, 2, 4, 6, 8, 10, 12, 14, 16]}
+          ticks={Array.from(
+            { length: Math.floor(MIDNIGHT_OFFSET / 2) + 1 },
+            (_, i) => i * 2
+          )}
           tickFormatter={value => (value === 16 ? '24:00' : `${HOUR_0 + value}:00`)}
           label={{ value: 'Time', position: 'insideBottom', offset: -10, style: { fontSize: 16 } }}
           style={{ fontSize: 14 }}
@@ -213,6 +252,11 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
         <Tooltip content={<CustomTooltip />} />
         {Array.from({ length: maxSegments }).map((_, i) => (
           <Bar key={i} dataKey={`${SEG_PREFIX}${i}_len`} stackId="a" isAnimationActive={false}>
+            <LabelList
+              dataKey={`${SEG_PREFIX}${i}_len`}
+              content={props => renderBarLabel(i, MIN_BAR_WIDTH_PX)({ ...props, payload: chartData[props.index] })}
+              position="insideLeft"
+            />
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
