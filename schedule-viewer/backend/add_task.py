@@ -5,7 +5,6 @@
 # 2. Use an arbitrary example for add task, eventually will be replaced by the frontend input.
 # 3. Call the tds function to add a task to the schedule.
 
-from initialize_schedule.run_initial_schedule import get_scenario
 from pymongo import MongoClient
 from tds.executer import add_task
 import pandas as pd
@@ -58,6 +57,26 @@ def retrieve_current_schedule(scenario_name):
         if 'client' in locals():
             client.close()
 
+def get_scenario(scenario_name):
+    """
+    Retrieve a scenario dict from MongoDB by scenario name
+    
+    Returns the scenario document or None if not found
+    """
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client.task_scheduler
+        scenarios = db.scenarios
+        
+        scenario = scenarios.find_one({'name': scenario_name})
+        return scenario
+    
+    except Exception as e:
+        print(f"❌ Error retrieving scenario: {str(e)}")
+        return None
+    finally:
+        if 'client' in locals():
+            client.close()
 
 def retrieve_scenario(scenario_name):
     # format dict to (request, travel_matrix, epoch_date)
@@ -76,12 +95,11 @@ scenario_data = retrieve_scenario('p3_w3_scenario')
 # Example new task to add (replace with frontend input eventually) assume task is df in format  ['task_name', 'required_capabilities', 'est', 'lft', 'duration']
 new_task = pd.DataFrame([{
     'task_name': 'new_task_1',
-    'required_capabilities': ['goosedaughter_presence'],
-    'est': 346080,
+    'required_capabilities': ['goosedaughter_presence'], # any string, eventually a dropdown
+    'est': 346080, # send in datetime format
     'lft': 350000,
     'duration': 2,
-    'locations': ['Vintage', 'Vintage'],
-    'task_type': 'social',
+    'locations': ['Vintage', 'Vintage'], # expect just one location, but pass it twice, can find list in scenarios travel_matrix (scenario_data[1])
 }])
 # Call the add_task function from tds.executer
 updated_schedule = add_task(new_task, scenario_data, current_schedule)
