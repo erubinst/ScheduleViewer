@@ -12,7 +12,11 @@ function DayByDaySchedule({ tasks }) {
   
   tasks.forEach(task => {
     // Parse the start_lb date (ISO format: "2026-01-14T08:01:00.000+00:00" or GMT format)
+    if (!task.start_lb) return; // Skip tasks without start time
+    
     const date = new Date(task.start_lb);
+    if (isNaN(date.getTime())) return; // Skip tasks with invalid dates
+    
     const dateStr = date.toISOString().split('T')[0]; // Get "2026-01-14"
     
     if (!tasksByDate[dateStr]) {
@@ -131,8 +135,13 @@ function DayByDaySchedule({ tasks }) {
   
   // Calculate height based on duration
   const getTaskHeight = (task) => {
+    if (!task.start_lb || !task.end_lb) return 60; // Default 1 hour
+    
     const start = new Date(task.start_lb);
     const end = new Date(task.end_lb);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 60; // Default 1 hour
+    
     const durationMinutes = (end - start) / (1000 * 60);
     return (durationMinutes / 60) * 60; // 60px per hour
   };

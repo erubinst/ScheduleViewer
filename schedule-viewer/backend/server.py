@@ -60,6 +60,57 @@ def verify_token(token):
     except jwt.InvalidTokenError:
         return None
 
+
+def normalize_new_task_dataframe(task_data=None, new_task_dataframe=None):
+    """
+    Build a dataframe-like payload (list with one row dict) for add_task.py compatibility.
+    Output format columns:
+      task_name, required_capabilities, est, lft, duration, locations
+    """
+    if isinstance(new_task_dataframe, list) and len(new_task_dataframe) > 0 and isinstance(new_task_dataframe[0], dict):
+        return new_task_dataframe
+
+    task_data = task_data or {}
+
+    task_name = task_data.get('taskName') or task_data.get('task_name') or 'new_task'
+    capability = task_data.get('requiredCapability') or task_data.get('taskType') or 'meeting'
+    location = task_data.get('location') or 'virtual'
+
+    est_raw = task_data.get('earliestStartTime') or task_data.get('est')
+    lft_raw = task_data.get('latestDueDate') or task_data.get('lft')
+
+    def _to_epoch_seconds(v):
+        if v in (None, ''):
+            return None
+        if isinstance(v, (int, float)):
+            return int(v)
+        if isinstance(v, str):
+            try:
+                return int(datetime.fromisoformat(v).timestamp())
+            except ValueError:
+                # Keep as-is if it is not ISO format
+                return v
+        return v
+
+    est = _to_epoch_seconds(est_raw)
+    lft = _to_epoch_seconds(lft_raw)
+
+    duration_raw = task_data.get('duration', 60)
+    try:
+        # UI duration is in minutes; add_task example uses hours-like numeric value.
+        duration = float(duration_raw) / 60.0
+    except (TypeError, ValueError):
+        duration = duration_raw
+
+    return [{
+        'task_name': task_name,
+        'required_capabilities': [capability],
+        'est': est,
+        'lft': lft,
+        'duration': duration,
+        'locations': [location, location]
+    }]
+
 # ======================= AUTH ROUTES =======================
 
 @app.route('/api/register', methods=['POST'])
@@ -181,12 +232,13 @@ def verify_user_token():
 def create_schedule():
     """
     Create schedule options for a new task
-    Expects: { "token": "jwt", "taskData": {...} }
+    Expects: { "token": "jwt", "taskData": {...}, "newTaskDataframe": [{...}] }
     """
     try:
         data = request.json
         token = data.get('token')
         task_data = data.get('taskData')
+        new_task_dataframe = data.get('newTaskDataframe')
         
         # Verify token
         payload = verify_token(token)
@@ -194,15 +246,22 @@ def create_schedule():
             return jsonify({'error': 'Invalid or expired token'}), 401
         
         username = payload['username']
+
+        normalized_df = normalize_new_task_dataframe(task_data, new_task_dataframe)
+        normalized_task = normalized_df[0] if normalized_df else {}
         
         print(f"Creating schedule for user: {username}")
         print(f"Task data: {task_data}")
+        print(f"DataFrame payload: {normalized_df}")
         
         # TODO: Replace this with your actual scheduler algorithm
         # For now, return mock schedules
-        schedules = generate_mock_schedules(task_data, username)
+        schedules = generate_mock_schedules(normalized_task, username)
         
-        return jsonify({'schedules': schedules}), 200
+        return jsonify({
+            'schedules': schedules,
+            'new_task_dataframe': normalized_df
+        }), 200
         
     except Exception as e:
         print(f"Schedule creation error: {str(e)}")
@@ -349,8 +408,13 @@ def generate_mock_schedules(task_data, username):
     Generate mock schedule options
     Replace this with your actual scheduling algorithm
     """
-    duration_in_hours = float(task_data['duration']) / 60
-    task_name = task_data['taskName']
+    duration_value = task_data.get('duration', 1)
+    try:
+        duration_in_hours = float(duration_value)
+    except (TypeError, ValueError):
+        duration_in_hours = 1
+
+    task_name = task_data.get('task_name') or task_data.get('taskName') or 'New Task'
     
     # Option 1: Morning schedule
     option1 = {

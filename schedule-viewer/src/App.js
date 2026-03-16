@@ -215,6 +215,7 @@ function App() {
   const [showSchedules, setShowSchedules] = useState(false);
   const [scheduleOptions, setScheduleOptions] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [newTaskDataframe, setNewTaskDataframe] = useState([]);
 
   // State for current/saved schedule in View Schedule tab
   const [currentSchedule, setCurrentSchedule] = useState({
@@ -277,6 +278,17 @@ function App() {
     e.preventDefault();
     console.log('Form submitted by:', username);
     console.log('Form data:', formData);
+
+    const dataframePayload = [{
+      task_name: formData.taskName,
+      required_capabilities: [formData.taskType],
+      est: formData.earliestStartTime,
+      lft: formData.latestDueDate,
+      duration: Number(formData.duration) / 60,
+      locations: [formData.location, formData.location]
+    }];
+
+    console.log('Dataframe payload:', dataframePayload);
     
     try {
       const response = await fetch(`${API_URL}/api/schedule`, {
@@ -284,13 +296,15 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: token,
-          taskData: formData
+          taskData: formData,
+          newTaskDataframe: dataframePayload
         })
       });
       
       if (response.ok) {
         const data = await response.json();
         setScheduleOptions(data.schedules);
+        setNewTaskDataframe(data.new_task_dataframe || dataframePayload);
         setShowSchedules(true);
       } else {
         const error = await response.json();
@@ -579,6 +593,11 @@ function App() {
             <p className="task-info">
               Task: {formData.taskName} ({formData.duration} minutes) at {formData.location.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
             </p>
+            {newTaskDataframe.length > 0 && (
+              <p className="task-info">
+                DataFrame row: {JSON.stringify(newTaskDataframe[0])}
+              </p>
+            )}
 
             <div className="schedule-options">
               {scheduleOptions.map((schedule, index) => (
