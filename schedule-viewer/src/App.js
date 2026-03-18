@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import GanttChart from './GanttChart';
 import DayByDaySchedule from './DayByDaySchedule';
+import AssignmentCard from './AssignmentCard';  // ← NEW
 
 const API_URL = 'http://127.0.0.1:5000';
 
@@ -22,9 +23,7 @@ function App() {
   useEffect(() => {
     const savedToken = localStorage.getItem('taskSchedulerToken');
     const savedUsername = localStorage.getItem('taskSchedulerUsername');
-    
     if (savedToken && savedUsername) {
-      // Verify token is still valid
       verifyToken(savedToken, savedUsername);
     }
   }, []);
@@ -37,18 +36,15 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: tokenToVerify })
       });
-      
       const data = await response.json();
-      
       if (data.valid) {
         setToken(tokenToVerify);
         setUsername(usernameToVerify);
         setIsLoggedIn(true);
-        
-        // Load user's schedule
         loadCurrentSchedule(tokenToVerify);
+        loadLocations(tokenToVerify);
+        loadCapabilities(tokenToVerify);
       } else {
-        // Token expired or invalid
         handleLogout();
       }
     } catch (error) {
@@ -65,7 +61,6 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
       });
-      
       if (response.ok) {
         const data = await response.json();
         setCurrentSchedule(data);
@@ -75,7 +70,49 @@ function App() {
     }
   };
 
-  // Load all resources' schedules from DB (everyone) for Gantt display
+  // Load capabilities
+  const loadCapabilities = async (userToken) => {
+    try {
+      const response = await fetch(`${API_URL}/api/capabilities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: userToken })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setAvailableCapabilities(data.capabilities || []);
+      } else {
+        console.error('Failed to load capabilities:', data.error || 'unknown error');
+        setAvailableCapabilities([]);
+      }
+    } catch (error) {
+      console.error('Failed to load capabilities:', error);
+      setAvailableCapabilities([]);
+    }
+  };
+
+  // Load location options
+  const loadLocations = async (userToken) => {
+    try {
+      const response = await fetch(`${API_URL}/api/locations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: userToken })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setLocationOptions(data.locations || []);
+      } else {
+        console.error('Failed to load locations:', data.error || 'unknown error');
+        setLocationOptions([]);
+      }
+    } catch (error) {
+      console.error('Failed to load locations:', error);
+      setLocationOptions([]);
+    }
+  };
+
+  // Load all resources' schedules for Gantt
   const loadAllResourceSchedules = async (userToken) => {
     setGanttLoading(true);
     setGanttError(null);
@@ -110,21 +147,14 @@ function App() {
     e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
-    
     try {
       const response = await fetch(`${API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: authUsername,
-          password: authPassword
-        })
+        body: JSON.stringify({ username: authUsername, password: authPassword })
       });
-      
       const data = await response.json();
-      
       if (response.ok) {
-        // Login successful
         localStorage.setItem('taskSchedulerToken', data.token);
         localStorage.setItem('taskSchedulerUsername', data.username);
         setToken(data.token);
@@ -132,9 +162,9 @@ function App() {
         setIsLoggedIn(true);
         setAuthUsername('');
         setAuthPassword('');
-        
-        // Load user's schedule
         loadCurrentSchedule(data.token);
+        loadLocations(data.token);
+        loadCapabilities(data.token);
       } else {
         setAuthError(data.error || 'Login failed');
       }
@@ -151,21 +181,14 @@ function App() {
     e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
-    
     try {
       const response = await fetch(`${API_URL}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: authUsername,
-          password: authPassword
-        })
+        body: JSON.stringify({ username: authUsername, password: authPassword })
       });
-      
       const data = await response.json();
-      
       if (response.ok) {
-        // Signup successful, automatically log in
         localStorage.setItem('taskSchedulerToken', data.token);
         localStorage.setItem('taskSchedulerUsername', data.username);
         setToken(data.token);
@@ -173,6 +196,9 @@ function App() {
         setIsLoggedIn(true);
         setAuthUsername('');
         setAuthPassword('');
+        loadCurrentSchedule(data.token);
+        loadLocations(data.token);
+        loadCapabilities(data.token);
       } else {
         setAuthError(data.error || 'Registration failed');
       }
@@ -194,49 +220,50 @@ function App() {
       setIsLoggedIn(false);
       setActiveTab('add');
       setShowSchedules(false);
-      setSelectedSchedule(null);
+      setAssignmentRows([]);
+      setSelectedCapabilities([]);
     }
   };
 
-  // Tab state: 'add' or 'view'
+  // Tab state
   const [activeTab, setActiveTab] = useState('add');
-  
-  // State for form data
+
+  // Form state
   const [formData, setFormData] = useState({
     taskName: '',
-    taskType: 'meeting',
-    duration: '60',
+    taskType: '',
+    duration: '',
     earliestStartTime: '',
     latestDueDate: '',
-    location: 'conference-room-a',
+    location: '',
   });
+  const [locationOptions, setLocationOptions] = useState([]);
+  const [availableCapabilities, setAvailableCapabilities] = useState([]);
+  const [selectedCapabilities, setSelectedCapabilities] = useState([]);
 
-  // State for showing schedules in Add Task flow
+  // Assignment result state
   const [showSchedules, setShowSchedules] = useState(false);
-  const [scheduleOptions, setScheduleOptions] = useState([]);
-  const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [assignmentRows, setAssignmentRows] = useState([]);
 
-  // State for current/saved schedule in View Schedule tab
+  // Current schedule (View tab)
   const [currentSchedule, setCurrentSchedule] = useState({
     id: 1,
     name: 'Current Schedule',
     tasks: []
   });
 
-  // Gantt: all events for everyone in the database, shown one day at a time (like the reference photo)
+  // Gantt state
   const [allResourcesSchedule, setAllResourcesSchedule] = useState({ tasks: [], scenario_name: null, resource_names: [] });
   const [ganttLoading, setGanttLoading] = useState(false);
   const [ganttError, setGanttError] = useState(null);
-  const [ganttSelectedDate, setGanttSelectedDate] = useState(null); // 'YYYY-MM-DD' for the single day shown
+  const [ganttSelectedDate, setGanttSelectedDate] = useState(null);
 
-  // When Gantt tab is open, load all resources' schedules from DB
   useEffect(() => {
     if (activeTab === 'gantt' && token) {
       loadAllResourceSchedules(token);
     }
   }, [activeTab, token]);
 
-  // When we have new Gantt data, set selected day to the first date that has events (one day = one chart, like the photo)
   const ganttDates = React.useMemo(() => {
     const tasks = allResourcesSchedule.tasks || [];
     const dateCounts = {};
@@ -255,7 +282,6 @@ function App() {
     }
   }, [ganttDates, ganttSelectedDate]);
 
-  // Tasks for the selected single day only (so the chart label and bars match one day)
   const ganttTasksForDay = React.useMemo(() => {
     const tasks = allResourcesSchedule.tasks || [];
     if (!ganttSelectedDate) return [];
@@ -267,80 +293,55 @@ function App() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Form submitted by:', username);
     console.log('Form data:', formData);
-    
     try {
       const response = await fetch(`${API_URL}/api/schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: token,
-          taskData: formData
+          taskData: formData,
+          selectedCapabilities: selectedCapabilities
         })
       });
-      
       if (response.ok) {
         const data = await response.json();
-        setScheduleOptions(data.schedules);
+        console.log('[FORM] API response:', data);
+        console.log('[FORM] assignments:', data.assignments);
+        setAssignmentRows(data.assignments || []);
         setShowSchedules(true);
       } else {
         const error = await response.json();
-        alert(error.error || 'Failed to create schedule');
+        alert(error.error || 'Failed to add task');
       }
     } catch (error) {
-      console.error('Schedule creation error:', error);
+      console.error('Add task error:', error);
       alert('Could not connect to server');
     }
   };
 
   const handleBack = () => {
     setShowSchedules(false);
-    setSelectedSchedule(null);
-  };
-
-  const handleSelectSchedule = async (index) => {
-    setSelectedSchedule(index);
-    const selected = scheduleOptions[index];
-    setCurrentSchedule(selected);
-    console.log('User', username, 'selected schedule:', selected);
-    
-    // Save to backend
-    try {
-      const response = await fetch(`${API_URL}/api/save-schedule`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: token,
-          schedule: selected
-        })
-      });
-      
-      if (response.ok) {
-        console.log('Schedule saved successfully');
-      }
-    } catch (error) {
-      console.error('Failed to save schedule:', error);
-    }
+    setAssignmentRows([]);
+    setSelectedCapabilities([]);
   };
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'add') {
       setShowSchedules(false);
-      setSelectedSchedule(null);
+      setAssignmentRows([]);
+      setSelectedCapabilities([]);
     }
   };
 
-  // If not logged in, show login/signup screen
+  // ── Login / signup screen ─────────────────────────────────────────────────
   if (!isLoggedIn) {
     return (
       <div className="app">
@@ -350,7 +351,6 @@ function App() {
             <p className="login-subtitle">
               {showSignup ? 'Create your account' : 'Log in to your account'}
             </p>
-            
             <form onSubmit={showSignup ? handleSignup : handleLogin} className="login-form">
               <div className="form-group">
                 <label htmlFor="username">Username</label>
@@ -364,11 +364,8 @@ function App() {
                   autoFocus
                   minLength="3"
                 />
-                {showSignup && (
-                  <small className="input-hint">At least 3 characters</small>
-                )}
+                {showSignup && <small className="input-hint">At least 3 characters</small>}
               </div>
-              
               <div className="form-group">
                 <label htmlFor="password">Password</label>
                 <input
@@ -380,46 +377,25 @@ function App() {
                   required
                   minLength="6"
                 />
-                {showSignup && (
-                  <small className="input-hint">At least 6 characters</small>
-                )}
+                {showSignup && <small className="input-hint">At least 6 characters</small>}
               </div>
-              
-              {authError && (
-                <div className="error-message">
-                  {authError}
-                </div>
-              )}
-              
+              {authError && <div className="error-message">{authError}</div>}
               <button type="submit" className="submit-button" disabled={authLoading}>
                 {authLoading ? 'Please wait...' : (showSignup ? 'Create Account' : 'Log In')}
               </button>
             </form>
-            
             <div className="auth-switch">
               {showSignup ? (
                 <p>
                   Already have an account?{' '}
-                  <button 
-                    className="link-button" 
-                    onClick={() => {
-                      setShowSignup(false);
-                      setAuthError('');
-                    }}
-                  >
+                  <button className="link-button" onClick={() => { setShowSignup(false); setAuthError(''); }}>
                     Log In
                   </button>
                 </p>
               ) : (
                 <p>
                   Don't have an account?{' '}
-                  <button 
-                    className="link-button" 
-                    onClick={() => {
-                      setShowSignup(true);
-                      setAuthError('');
-                    }}
-                  >
+                  <button className="link-button" onClick={() => { setShowSignup(true); setAuthError(''); }}>
                     Sign Up
                   </button>
                 </p>
@@ -431,193 +407,106 @@ function App() {
     );
   }
 
-  // Main application (user is logged in)
+  // ── Main application ──────────────────────────────────────────────────────
   return (
     <div className="app">
-      {/* Combined Header: User Info + Tabs + Logout */}
+      {/* Header */}
       <div className="header-container">
         <div className="user-info">
           <span className="user-icon">👤</span>
           <span className="username-display">{username}</span>
         </div>
-
         <div className="tab-navigation">
-          <button 
-            className={`tab-button ${activeTab === 'add' ? 'active' : ''}`}
-            onClick={() => handleTabChange('add')}
-          >
-            Add a Task
-          </button>
-          <button 
-            className={`tab-button ${activeTab === 'view' ? 'active' : ''}`}
-            onClick={() => handleTabChange('view')}
-          >
-            View Schedule
-          </button>
-          <button 
-            className={`tab-button ${activeTab === 'gantt' ? 'active' : ''}`}
-            onClick={() => handleTabChange('gantt')}
-          >
-            Gantt Chart
-          </button>
+          <button className={`tab-button ${activeTab === 'add'   ? 'active' : ''}`} onClick={() => handleTabChange('add')}>Add a Task</button>
+          <button className={`tab-button ${activeTab === 'view'  ? 'active' : ''}`} onClick={() => handleTabChange('view')}>View Schedule</button>
+          <button className={`tab-button ${activeTab === 'gantt' ? 'active' : ''}`} onClick={() => handleTabChange('gantt')}>Gantt Chart</button>
         </div>
-
-        <button className="logout-button" onClick={handleLogout}>
-          Log Out
-        </button>
+        <button className="logout-button" onClick={handleLogout}>Log Out</button>
       </div>
 
-      {/* Tab Content */}
+      {/* ── ADD TASK TAB ──────────────────────────────────────────────── */}
       {activeTab === 'add' ? (
-        // ADD TASK TAB
         !showSchedules ? (
-          // FORM VIEW
+          // Form view — unchanged
           <div className="container">
             <h1>Add New Task</h1>
-            
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label htmlFor="taskName">Task Name</label>
-                <input
-                  type="text"
-                  id="taskName"
-                  name="taskName"
-                  value={formData.taskName}
-                  onChange={handleChange}
-                  placeholder="Enter task name"
-                  required
-                />
+                <input type="text" id="taskName" name="taskName" value={formData.taskName} onChange={handleChange} placeholder="Enter task name" required />
               </div>
-
               <div className="form-group">
                 <label htmlFor="taskType">Task Type</label>
-                <select
-                  id="taskType"
-                  name="taskType"
-                  value={formData.taskType}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="meeting">Meeting</option>
-                  <option value="review">Review</option>
-                  <option value="development">Development</option>
-                  <option value="planning">Planning</option>
+                <select id="taskType" name="taskType" value={formData.taskType} onChange={handleChange} required>
+                  <option value="" disabled>Select a task type</option>
+                  <option value="medical_appointment">medical_appointment</option>
+                  <option value="medication_pickup">medication_pickup</option>
+                  <option value="food_shopping">food_shopping</option>
+                  <option value="cleaning">cleaning</option>
+                  <option value="work">work</option>
+                  <option value="social">social</option>
                 </select>
               </div>
-
               <div className="form-group">
                 <label htmlFor="duration">Duration (minutes)</label>
-                <input
-                  type="number"
-                  id="duration"
-                  name="duration"
-                  value={formData.duration}
-                  onChange={handleChange}
-                  min="15"
-                  step="15"
-                  placeholder="e.g., 60"
-                  required
-                />
+                <input type="number" id="duration" name="duration" value={formData.duration} onChange={handleChange} min="1" placeholder="e.g., 60" required />
               </div>
-
               <div className="form-group">
                 <label htmlFor="earliestStartTime">Earliest Start Time</label>
-                <input
-                  type="datetime-local"
-                  id="earliestStartTime"
-                  name="earliestStartTime"
-                  value={formData.earliestStartTime}
-                  onChange={handleChange}
-                  required
-                />
+                <input type="datetime-local" id="earliestStartTime" name="earliestStartTime" value={formData.earliestStartTime} onChange={handleChange} required />
               </div>
-
               <div className="form-group">
                 <label htmlFor="latestDueDate">Latest Due Date</label>
-                <input
-                  type="datetime-local"
-                  id="latestDueDate"
-                  name="latestDueDate"
-                  value={formData.latestDueDate}
-                  onChange={handleChange}
-                  required
-                />
+                <input type="datetime-local" id="latestDueDate" name="latestDueDate" value={formData.latestDueDate} onChange={handleChange} required />
               </div>
-
               <div className="form-group">
                 <label htmlFor="location">Location</label>
-                <select
-                  id="location"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="conference-room-a">Conference Room A</option>
-                  <option value="conference-room-b">Conference Room B</option>
-                  <option value="meeting-room-1">Meeting Room 1</option>
-                  <option value="meeting-room-2">Meeting Room 2</option>
-                  <option value="virtual">Virtual (Online)</option>
-                  <option value="office-main">Main Office</option>
-                  <option value="office-branch">Branch Office</option>
+                <select id="location" name="location" value={formData.location} onChange={handleChange} required>
+                  <option value="" disabled>Select a location</option>
+                  {locationOptions.map((loc) => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
                 </select>
               </div>
-
-              <button type="submit" className="submit-button">
-                Create Schedule Options
-              </button>
+              <div className="form-group">
+                <label htmlFor="capabilities">Required Capabilities</label>
+                <select
+                  id="capabilities"
+                  multiple
+                  size={Math.min(availableCapabilities.length, 6)}
+                  value={selectedCapabilities}
+                  onChange={(e) => setSelectedCapabilities(Array.from(e.target.selectedOptions, o => o.value))}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'inherit' }}
+                >
+                  {availableCapabilities.length === 0 ? (
+                    <option value="" disabled>No capabilities available</option>
+                  ) : (
+                    availableCapabilities.map((cap) => (
+                      <option key={cap} value={cap}>{cap}</option>
+                    ))
+                  )}
+                </select>
+                <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>Hold Ctrl/Cmd to select multiple</small>
+              </div>
+              <button type="submit" className="submit-button">Add Task</button>
             </form>
           </div>
         ) : (
-          // SCHEDULE OPTIONS VIEW
+          // ── ASSIGNMENTS OUTPUT VIEW ── replaced raw JSON with AssignmentCard
           <div className="schedules-container">
-            <button className="back-button" onClick={handleBack}>
-              ← Back to Form
-            </button>
-
-            <h1 className="schedules-title">Choose Your Preferred Schedule</h1>
+            <button className="back-button" onClick={handleBack}>← Back to Form</button>
+            <h1 className="schedules-title">Task Assignment</h1>
             <p className="task-info">
-              Task: {formData.taskName} ({formData.duration} minutes) at {formData.location.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              Here's how the scheduler has assigned this task.
             </p>
-
-            <div className="schedule-options">
-              {scheduleOptions.map((schedule, index) => (
-                <div 
-                  key={schedule.id}
-                  className={`schedule-card ${selectedSchedule === index ? 'selected' : ''}`}
-                >
-                  <div className="schedule-header">
-                    <h2>{schedule.name}</h2>
-                    {selectedSchedule === index && (
-                      <span className="selected-badge">✓ Selected</span>
-                    )}
-                  </div>
-
-                  <GanttChart tasks={schedule.tasks} /> //calling the func for every schedule?
-
-                  <button
-                    className={`select-button ${selectedSchedule === index ? 'selected' : ''}`}
-                    onClick={() => handleSelectSchedule(index)}
-                  >
-                    {selectedSchedule === index ? 'Selected Schedule' : 'Select This Schedule'}
-                  </button>
-                </div>
-              ))}
+            <div className="current-schedule-card">
+              <AssignmentCard assignmentRows={assignmentRows} />
             </div>
-
-            {selectedSchedule !== null && (
-              <div className="confirmation-message">
-                <div className="confirmation-content">
-                  <span className="check-icon">✓</span>
-                  <h3>Schedule Option {selectedSchedule + 1} Selected!</h3>
-                  <p>Your task has been added to the calendar.</p>
-                </div>
-              </div>
-            )}
           </div>
         )
+
       ) : activeTab === 'gantt' ? (
-        // GANTT CHART TAB — one day at a time, all people (like the reference photo)
+        // ── GANTT TAB — unchanged ──────────────────────────────────────
         <div className="view-schedule-container">
           <div className="view-schedule-content">
             <h1>Gantt Chart</h1>
@@ -627,9 +516,7 @@ function App() {
             )}
             <div className="current-schedule-card">
               {ganttLoading ? (
-                <div className="empty-schedule">
-                  <p>Loading events from database…</p>
-                </div>
+                <div className="empty-schedule"><p>Loading events from database…</p></div>
               ) : ganttError ? (
                 <div className="empty-schedule gantt-error">
                   <p><strong>Could not load events</strong></p>
@@ -656,7 +543,9 @@ function App() {
                           ← Previous day
                         </button>
                         <span className="gantt-day-label">
-                          {ganttSelectedDate ? new Date(ganttSelectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                          {ganttSelectedDate
+                            ? new Date(ganttSelectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                            : ''}
                         </span>
                         <button
                           type="button"
@@ -675,7 +564,9 @@ function App() {
                   {ganttTasksForDay.length > 0 ? (
                     <GanttChart
                       tasks={ganttTasksForDay}
-                      dateLabel={ganttSelectedDate ? new Date(ganttSelectedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null}
+                      dateLabel={ganttSelectedDate
+                        ? new Date(ganttSelectedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                        : null}
                       resourceOrder={allResourcesSchedule.resource_names}
                     />
                   ) : (
@@ -694,16 +585,15 @@ function App() {
             </div>
           </div>
         </div>
+
       ) : (
-        // VIEW SCHEDULE TAB
+        // ── VIEW SCHEDULE TAB — unchanged ─────────────────────────────
         <div className="view-schedule-container">
           <div className="view-schedule-content">
             <h1>My Schedule</h1>
             <p className="schedule-subtitle">Welcome, {username}</p>
-            
             <div className="current-schedule-card">
               {currentSchedule.tasks && currentSchedule.tasks.length > 0 ? (
-                
                 <DayByDaySchedule tasks={currentSchedule.tasks} />
               ) : (
                 <div className="empty-schedule">
