@@ -332,6 +332,14 @@ function App() {
     setSelectedCapabilities([]);
   };
 
+  const handleAssignmentDecision = (accepted) => {
+    if (accepted) {
+      console.log('[ASSIGNMENT] User accepted generated assignment');
+    } else {
+      console.log('[ASSIGNMENT] User rejected generated assignment');
+    }
+  };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'add') {
@@ -500,7 +508,10 @@ function App() {
               Here's how the scheduler has assigned this task.
             </p>
             <div className="current-schedule-card">
-              <AssignmentCard assignmentRows={assignmentRows} />
+              <AssignmentCard
+                assignmentRows={assignmentRows}
+                onDecision={handleAssignmentDecision}
+              />
             </div>
           </div>
         )

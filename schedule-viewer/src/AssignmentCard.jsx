@@ -1,4 +1,5 @@
 import React from 'react';
+import './AssignmentCard.css';
 
 // ─── Parser ────────────────────────────────────────────────────────────────
 // Converts raw add_task rows (which contain Python repr strings) into plain objects.
@@ -40,7 +41,7 @@ function parseAssignments(rows) {
           resource,
           capability:   cap,
           followsTask:  e.prior_task_name,
-          endLb:      e.prior_task_start_lb,
+          endLb:      e.prior_task_end_lb,
           location:     e.prior_task_location,
         });
       }
@@ -63,7 +64,7 @@ function parseAssignments(rows) {
         driver,
         passenger:  t.driven_resource    || null,
         pickupAt:   t.prior_task_name     || null,
-        endLb:    t.prior_task_start_lb || null,
+        endLb:    t.prior_task_end_lb || null,
         location:   t.prior_task_location || null,
         dropsOffAt: dropTask,
       });
@@ -75,26 +76,44 @@ function parseAssignments(rows) {
 
 // ─── Small reusable pieces ────────────────────────────────────────────────────
 
-const humanTask = (id) => id || '';
+// Deterministic color palette — same resource name always gets the same color.
+// Each entry is [background, textColor].
+const RESOURCE_PALETTE = [
+  ['#EEEDFE', '#3C3489'], // purple
+  ['#E1F5EE', '#085041'], // teal
+  ['#FAEEDA', '#633806'], // amber
+  ['#FAECE7', '#993C1D'], // coral
+  ['#FBEAF0', '#72243E'], // pink
+  ['#EAF3DE', '#27500A'], // green
+  ['#E6F1FB', '#0C447C'], // blue
+];
 
-function Pill({ children, variant = 'default' }) {
-  const variants = {
-    resource:  { background: '#EEEDFE', color: '#3C3489' },
-    cap:       { background: '#E1F5EE', color: '#085041' },
-    transport: { background: '#FAEEDA', color: '#633806' },
-    default:   { background: '#F1EFE8', color: '#444441' },
-  };
+function resourceColor(name) {
+  if (!name) return RESOURCE_PALETTE[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return RESOURCE_PALETTE[hash % RESOURCE_PALETTE.length];
+}
+
+function Pill({ children, variant = 'default', resourceName = null }) {
+  let bg, color;
+  if (variant === 'resource' && resourceName) {
+    [bg, color] = resourceColor(resourceName);
+  } else {
+    const variants = {
+      cap:     { background: '#E1F5EE', color: '#085041' },
+      default: { background: '#F1EFE8', color: '#444441' },
+    };
+    const v = variants[variant] || variants.default;
+    bg = v.background; color = v.color;
+  }
   return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 10px',
-      borderRadius: 99,
-      fontSize: 12,
-      fontWeight: 500,
-      whiteSpace: 'nowrap',
-      flexShrink: 0,
-      ...variants[variant],
-    }}>
+    <span
+      className="assignment-pill"
+      style={{ background: bg, color }}
+    >
       {children}
     </span>
   );
@@ -102,76 +121,19 @@ function Pill({ children, variant = 'default' }) {
 
 function TaskCode({ children }) {
   return (
-    <code style={{
-      fontSize: 12,
-      background: 'rgba(0,0,0,0.06)',
-      padding: '1px 6px',
-      borderRadius: 4,
-      fontFamily: 'monospace',
-    }}>
+    <code className="assignment-task-code">
       {children}
     </code>
   );
 }
-
-function Card({ children, style }) {
-  return (
-    <div style={{
-      background: 'var(--color-background-secondary, #f8f8f7)',
-      border: '1px solid rgba(0,0,0,0.07)',
-      borderRadius: 12,
-      padding: '18px 22px',
-      marginBottom: 12,
-      ...style,
-    }}>
-      {children}
-    </div>
-  );
-}
-
-function SectionLabel({ children }) {
-  return (
-    <div style={{
-      fontSize: 10,
-      fontWeight: 600,
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
-      color: '#888780',
-      marginBottom: 12,
-    }}>
-      {children}
-    </div>
-  );
-}
-
-function Row({ children }) {
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: 6,
-      marginBottom: 8,
-      fontSize: 14,
-      lineHeight: 1.6,
-      color: '#2c2c2a',
-    }}>
-      {children}
-    </div>
-  );
-}
-
-const Muted = ({ children }) => (
-  <span style={{ color: '#888780' }}>{children}</span>
-);
+const Muted = ({ children }) => <span className="assignment-muted">{children}</span>;
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export default function AssignmentCard({ assignmentRows }) {
+export default function AssignmentCard({ assignmentRows, onDecision }) {
   if (!assignmentRows || assignmentRows.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '40px 20px', color: '#888780', fontSize: 14 }}>
-        <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
+      <div className="assignment-empty-state">
         No assignments were returned for this task.
       </div>
     );
@@ -183,43 +145,49 @@ export default function AssignmentCard({ assignmentRows }) {
   const { capAssignments, transportAssignments, totalRideTime, totalTravel } = result;
 
   return (
-    <div>
+    <div className="assignment-card-root">
 
       {/* ── Who handles what ─────────────────────────────────────────── */}
-      <Card>
-        <SectionLabel>Assignments</SectionLabel>
+      <div className="assignment-section">
+        <div className="assignment-section-label">Assignments</div>
         {capAssignments.length === 0
           ? <Muted>No capability assignments.</Muted>
           : capAssignments.map((a, i) => (
-            <div key={i} style={{ marginBottom: i < capAssignments.length - 1 ? 14 : 0 }}>
-              <Row>
-                <Pill variant="resource">{a.resource}</Pill>
+            <div
+              key={i}
+              className={`assignment-item ${i < capAssignments.length - 1 ? 'assignment-item-spaced' : ''}`}
+            >
+              <div className="assignment-row">
+                <Pill variant="resource" resourceName={a.resource}>{a.resource}</Pill>
                 <span>handles</span>
                 <Pill variant="cap">{a.capability}</Pill>
                 <Muted>· scheduled after</Muted>
                 <TaskCode>{a.followsTask}</TaskCode>
-              </Row>
+              </div>
               {(a.endLb || a.location) && (
-                <div style={{ marginLeft: 4, marginTop: 2, display: 'flex', gap: 16, fontSize: 12, color: '#5F5E5A' }}>
-                  {a.endLb  && <span>🕐 Prior task ends around {fmtTime(a.endLb)}</span>}
-                  {a.location && <span>📍 {a.location}</span>}
+                <div className="assignment-subline">
+                  {a.endLb && <span>Prior task ends around {fmtTime(a.endLb)}</span>}
+                  {a.location && <span>Location: {a.location}</span>}
                 </div>
               )}
             </div>
           ))
         }
-      </Card>
+      </div>
 
       {/* ── Transport — only rendered if the scheduler assigned a ride ── */}
       {transportAssignments.length > 0 && (
-        <Card>
-          <SectionLabel>Transport</SectionLabel>
+        <div className="assignment-section">
+          <div className="assignment-section-label">Transport</div>
           {transportAssignments.map((t, i) => (
-            <div key={i} style={{ marginBottom: i < transportAssignments.length - 1 ? 14 : 0 }}>
-              <Row>
-                <Pill variant="transport">{t.driver}</Pill>
+            <div
+              key={i}
+              className={`assignment-item ${i < transportAssignments.length - 1 ? 'assignment-item-spaced' : ''}`}
+            >
+              <div className="assignment-row">
+                <Pill variant="resource" resourceName={t.driver}>{t.driver}</Pill>
                 <span>picks up</span>
-                {t.passenger && <Pill variant="resource">{t.passenger}</Pill>}
+                {t.passenger && <Pill variant="resource" resourceName={t.passenger}>{t.passenger}</Pill>}
                 {t.pickupAt && <><Muted>after</Muted><TaskCode>{t.pickupAt}</TaskCode></>}
                 {t.dropsOffAt && (
                   <>
@@ -227,47 +195,62 @@ export default function AssignmentCard({ assignmentRows }) {
                     <strong>{t.dropsOffAt}</strong>
                   </>
                 )}
-              </Row>
+              </div>
               {(t.endLb || t.location) && (
-                <div style={{ marginLeft: 4, marginTop: 2, display: 'flex', gap: 16, fontSize: 12, color: '#5F5E5A' }}>
-                  {t.endLb  && <span>🕐 Pickup after task ending around {fmtTime(t.endLb)}</span>}
-                  {t.location && <span>📍 {t.location}</span>}
+                <div className="assignment-subline">
+                  {t.endLb && <span>Pickup after task ending around {fmtTime(t.endLb)}</span>}
+                  {t.location && <span>Location: {t.location}</span>}
                 </div>
               )}
             </div>
           ))}
-        </Card>
+        </div>
       )}
 
       {/* ── Stats ────────────────────────────────────────────────────── */}
       {(totalRideTime != null || totalTravel != null) && (
-        <Card style={{ padding: '16px 22px' }}>
-          <div style={{ display: 'flex', gap: 40 }}>
+        <div className="assignment-section assignment-stats-section">
+          <div className="assignment-stats-grid">
             {totalRideTime != null && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#888780' }}>
-                  Ride time
-                </span>
-                <span style={{ fontSize: 22, fontWeight: 600, color: '#2c2c2a', lineHeight: 1 }}>
+              <div className="assignment-stat">
+                <span className="assignment-stat-label">Ride time</span>
+                <span className="assignment-stat-value">
                   {totalRideTime}
-                  <span style={{ fontSize: 12, fontWeight: 400, color: '#888780', marginLeft: 3 }}>min</span>
+                  <span className="assignment-stat-unit">min</span>
                 </span>
               </div>
             )}
             {totalTravel != null && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#888780' }}>
-                  Total travel
-                </span>
-                <span style={{ fontSize: 22, fontWeight: 600, color: '#2c2c2a', lineHeight: 1 }}>
+              <div className="assignment-stat">
+                <span className="assignment-stat-label">Total travel</span>
+                <span className="assignment-stat-value">
                   {totalTravel}
-                  <span style={{ fontSize: 12, fontWeight: 400, color: '#888780', marginLeft: 3 }}>min</span>
+                  <span className="assignment-stat-unit">min</span>
                 </span>
               </div>
             )}
           </div>
-        </Card>
+        </div>
       )}
+
+      <div className="assignment-section assignment-decision-section">
+        <div className="assignment-decision-buttons">
+          <button
+            type="button"
+            onClick={() => onDecision && onDecision(true)}
+            className="assignment-accept-btn"
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            onClick={() => onDecision && onDecision(false)}
+            className="assignment-reject-btn"
+          >
+            Reject
+          </button>
+        </div>
+      </div>
 
     </div>
   );
