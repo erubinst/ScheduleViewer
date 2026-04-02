@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { includeTaskForDisplay } from './taskFilters';
 
 function DayByDaySchedule({ tasks }) {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -10,7 +11,8 @@ function DayByDaySchedule({ tasks }) {
   // Group tasks by date
   const tasksByDate = {};
   
-  tasks.forEach(task => {
+  // tasks.forEach(task => {
+  (tasks || []).filter(includeTaskForDisplay).forEach(task => {
     // Parse the start_lb date (ISO format: "2026-01-14T08:01:00.000+00:00" or GMT format)
     const date = new Date(task.start_lb);
     const dateStr = date.toISOString().split('T')[0]; // Get "2026-01-14"
@@ -108,7 +110,7 @@ function DayByDaySchedule({ tasks }) {
   // Get task color based on task name
   const getTaskColor = (taskName) => {
     // gray one
-    if (taskName.includes('travel')) return '#94a3b8';
+    if (taskName.includes('travel')) return 'rgba(148, 163, 184, 0.55)';
     // yellow one
     if (taskName.includes('pickup') || taskName.includes('dropoff')) return '#f59e0b';
     
@@ -212,6 +214,9 @@ function DayByDaySchedule({ tasks }) {
                   
                   // Skip if position is negative (before 8am) or too large
                   if (top < 0 || top > 1000) return null;
+
+
+                  const isTravel = String(task.task_name || '').toLowerCase().includes('travel');
                   
                   return (
                     <div
@@ -223,9 +228,13 @@ function DayByDaySchedule({ tasks }) {
                         backgroundColor: color
                       }}
                     >
-                      <div className="task-time-small">{formatTime(task.start_lb)}</div>
-                      <div className="task-name-small">{task.task_name}</div>
-                      {task.location && <div className="task-location-small">📍 {task.location}</div>}
+                      {!isTravel && (
+                      <>
+                        <div className="task-time-small">{formatTime(task.start_lb)}</div>
+                        <div className="task-name-small">{task.task_name}</div>
+                        {task.location && <div className="task-location-small">📍 {task.location}</div>}
+                      </>
+                      )}
                     </div>
                   );
                 })}

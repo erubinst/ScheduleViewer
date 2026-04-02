@@ -1,11 +1,12 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList } from 'recharts';
+import { includeTaskForDisplay } from './taskFilters';
 // buildin gantt chart using stacked bar charts
 
 const HOUR_0 = 5;
 // Minimum bar width (px) before we show the task name on the bar; set to 0 to always show
 const MIN_BAR_WIDTH_PX = 50;
-const MIDNIGHT_OFFSET = 19; // 8am → midnight (hours from 8am)
+const MIDNIGHT_OFFSET = 19; // 5am → midnight (hours from 5am)
 const SEG_PREFIX = 'seg';
 
 // Same event-type differentiation as DayByDaySchedule (travel = gray, pickup/dropoff = yellow, else blue)
@@ -45,7 +46,7 @@ function normalizeTask(task, defaultPerson) { //standardizing a task
   };
 }
 
-// Format decimal hours (0–16) as "HH:MM" (5:00–24:00)
+// time formatting --> used when displaying info of event
 function formatTime(hoursFrom8am) {
   const totalMins = Math.round(hoursFrom8am * 60);
   const h = HOUR_0 + Math.floor(totalMins / 60);
@@ -54,7 +55,7 @@ function formatTime(hoursFrom8am) {
   return `${h}:${String(m).padStart(2, '0')}`;
 }
 
-// Format duration in hours as "1h 30m"
+// different time formatting
 function formatDuration(hours) {
   const h = Math.floor(hours);
   const m = Math.round((hours - h) * 60);
@@ -79,7 +80,10 @@ function renderBarLabel(segmentIndex, minWidthPx) {
     if (barWidthPx < minWidthPx) return null;
     const approxCharWidth = 7;
     const maxChars = Math.max(2, Math.floor((barWidthPx - 12) / approxCharWidth));
-    const displayName = name.length <= maxChars ? name : name.slice(0, maxChars - 1) + '…';
+
+    // Only show text if the full name fits in the bar; otherwise show nothing
+    if (name.length > maxChars) return null;
+
     return (
       <text
         x={x + 6}
@@ -90,37 +94,47 @@ function renderBarLabel(segmentIndex, minWidthPx) {
         fontWeight={500}
         style={{ pointerEvents: 'none' }}
       >
-        {displayName}
+        {name}
       </text>
     );
   };
 }
 
 function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
-  if (!tasks || tasks.length === 0) {
+  // if (!tasks || tasks.length === 0) {
+  //   return (
+  //     <div className="gantt-chart-container" style={{ padding: 20 }}>
+  //       <p>No tasks to display.</p>
+  //     </div>
+  //   );
+  // }
+  const visibleTasks = (tasks || []).filter(includeTaskForDisplay);
+  if (!visibleTasks.length) {
     return (
       <div className="gantt-chart-container" style={{ padding: 20 }}>
         <p>No tasks to display.</p>
       </div>
     );
   }
+  const normalized = visibleTasks.map(t => normalizeTask(t, defaultPerson));
 
-  const normalized = tasks.map(t => normalizeTask(t, defaultPerson));
+  // const normalized = tasks.map(t => normalizeTask(t, defaultPerson));
   const peopleFromData = [...new Set(normalized.map(t => t.person))];
   const people =
     resourceOrder && resourceOrder.length > 0
       ? resourceOrder
       : peopleFromData;
 
-  // Build segment-based data so bars appear at correct times (gap + task, gap + task, ...)
+  // bars appear at correct times (gap + task, gap + task, ...)
   let maxSegments = 0;
   const chartData = people.map(person => {
     const personTasks = normalized
       .filter(t => t.person === person)
       .sort((a, b) => a.start - b.start);
 
-    const segments = [];
-    let end = 0;
+    
+    const segments = []; // segments are the bars in the chart
+    let end = 0; // end time of the last task
 
     personTasks.forEach(task => {
       const gap = Math.max(0, task.start - end);
@@ -148,6 +162,8 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
     if (segments.length > maxSegments) maxSegments = segments.length;
 
     const row = { person };
+
+
     segments.forEach((seg, i) => {
       row[`${SEG_PREFIX}${i}_len`] = seg.len;
       row[`${SEG_PREFIX}${i}_isGap`] = seg.isGap;
@@ -159,8 +175,7 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
     return row;
   });
 
-  // Pad rows so every row has the same number of segment keys
-  chartData.forEach(row => {
+  chartData.forEach(row => { // padding rows so every row has the same number of segment keys
     for (let i = 0; i < maxSegments; i++) {
       if (row[`${SEG_PREFIX}${i}_len`] == null) {
         row[`${SEG_PREFIX}${i}_len`] = 0;
@@ -171,7 +186,9 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
   });
 
   const maxTime = MIDNIGHT_OFFSET;
-  const displayDate =
+
+  // if date label provided, use it, otherwise use the date of the first task
+  const displayDate = 
     dateLabel ||
     (tasks[0]?.start_lb
       ? new Date(tasks[0].start_lb).toLocaleDateString('en-US', {
@@ -181,45 +198,65 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
         })
       : null);
 
+  // Tooltip: shows task name, person, time range, and duration for the bar segment you're hovering over.
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload || !payload.length) return null;
-    const data = payload[0].payload;
-    const match = payload[0].dataKey.match(new RegExp(`${SEG_PREFIX}(\\d+)_len`));
-    const segIndex = match ? match[1] : null;
-    if (segIndex == null) return null;
-    const isGap = data[`${SEG_PREFIX}${segIndex}_isGap`];
-    if (isGap) return null;
 
-    const taskName = data[`${SEG_PREFIX}${segIndex}_name`];
-    const start = data[`${SEG_PREFIX}${segIndex}_start`];
-    const duration = data[`${SEG_PREFIX}${segIndex}_duration`];
-    if (start == null || duration == null) return null;
+    // Walk each entry in payload. With shared={false}, Recharts usually sends just the one segment
+    // you hovered; we still loop so we skip gaps and use the first real task if needed.
+    for (const entry of payload) {
+      const data = entry.payload; // the row (one person's segments)
+      // dataKey is e.g. "seg0_len", "seg1_len" → extract segment index
+      const match = String(entry.dataKey || '').match(new RegExp(`${SEG_PREFIX}(\\d+)_len`));
+      const segIndex = match ? match[1] : null;
+      if (segIndex == null) continue;
 
-    const startStr = formatTime(start);
-    const endStr = formatTime(start + duration);
-    const durationStr = formatDuration(duration);
+      const isGap = data[`${SEG_PREFIX}${segIndex}_isGap`];
+      const value = entry.value; // bar length (hours); 0 for empty/gap segments
+      // Only show tooltip for real tasks: skip gaps and zero-length segments
+      if (isGap || value == null || value <= 0) continue;
 
-    return (
-      <div
-        style={{
-          background: 'white',
-          padding: 16,
-          border: '2px solid #ccc',
-          borderRadius: 8,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-        }}
-      >
-        <p style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>{taskName}</p>
-        <p style={{ fontSize: 16 }}>Person: {data.person}</p>
-        <p style={{ fontSize: 16 }}>Time: {startStr} – {endStr}</p>
-        <p style={{ fontSize: 16 }}>Duration: {durationStr}</p>
-      </div>
-    );
+      const taskName = data[`${SEG_PREFIX}${segIndex}_name`];
+
+      // doesnt show tooltip if it is the grey color (travel)
+      const segColor = data[`${SEG_PREFIX}${segIndex}_color`];
+      if (segColor === '#94a3b8') continue; 
+
+
+      const start = data[`${SEG_PREFIX}${segIndex}_start`];
+      const duration = data[`${SEG_PREFIX}${segIndex}_duration`];
+      
+      
+      if (start == null || duration == null) continue;      
+      
+
+      const startStr = formatTime(start);
+      const endStr = formatTime(start + duration);
+      const durationStr = formatDuration(duration);
+
+      return (
+        <div
+          style={{
+            background: 'white',
+            padding: 16,
+            border: '2px solid #ccc',
+            borderRadius: 8,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+          }}
+        >
+          <p style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 8 }}>{taskName}</p>
+          <p style={{ fontSize: 16 }}>Person: {data.person}</p>
+          <p style={{ fontSize: 16 }}>Time: {startStr} – {endStr}</p>
+          <p style={{ fontSize: 16 }}>Duration: {durationStr}</p>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
     <div className="gantt-chart-container">
-      {displayDate && (
+      {displayDate && ( // date label 
         <p className="gantt-chart-date" style={{ marginBottom: 8, fontSize: 16, color: '#64748b' }}>
           {displayDate}
         </p>
@@ -249,7 +286,8 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
           width={90}
           style={{ fontSize: 16 }}
         />
-        <Tooltip content={<CustomTooltip />} />
+        {/* shared={false} → tooltip gets only the bar segment under the cursor, not all segments in the row */}
+        <Tooltip content={<CustomTooltip />} shared={false} />
         {Array.from({ length: maxSegments }).map((_, i) => (
           <Bar key={i} dataKey={`${SEG_PREFIX}${i}_len`} stackId="a" isAnimationActive={false}>
             <LabelList

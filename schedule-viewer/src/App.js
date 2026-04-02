@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import GanttChart from './GanttChart';
 import DayByDaySchedule from './DayByDaySchedule';
-import AssignmentCard from './AssignmentCard';  // ← NEW
+import AssignmentCard from './AssignmentCard';
+import Inbox from './Inbox';
 
 const API_URL = 'http://127.0.0.1:5000';
 
@@ -18,6 +19,17 @@ function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+
+  // for inbox:
+  const [inboxMsgs, setInboxMsgs] = useState([
+    {
+      id: 1,
+      sender: 'John Doe',
+      subject: 'Meeting with Jane',
+      message: 'hello.',
+      timestamp: '2026-01-01 10:00:00'
+    }
+  ]);
 
   // Check for existing token on load
   useEffect(() => {
@@ -425,9 +437,30 @@ function App() {
           <span className="username-display">{username}</span>
         </div>
         <div className="tab-navigation">
-          <button className={`tab-button ${activeTab === 'add'   ? 'active' : ''}`} onClick={() => handleTabChange('add')}>Add a Task</button>
-          <button className={`tab-button ${activeTab === 'view'  ? 'active' : ''}`} onClick={() => handleTabChange('view')}>View Schedule</button>
-          <button className={`tab-button ${activeTab === 'gantt' ? 'active' : ''}`} onClick={() => handleTabChange('gantt')}>Gantt Chart</button>
+        <button
+            className={`tab-button ${activeTab === 'add' ? 'active' : ''}`}
+            onClick={() => handleTabChange('add')}
+          >
+            Add a Task
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'view' ? 'active' : ''}`}
+            onClick={() => handleTabChange('view')}
+          >
+            View Schedule
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'gantt' ? 'active' : ''}`}
+            onClick={() => handleTabChange('gantt')}
+          >
+            Gantt Chart
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'inbox' ? 'active' : ''}`}
+            onClick={() => handleTabChange('inbox')}
+          >
+            Inbox
+          </button>
         </div>
         <button className="logout-button" onClick={handleLogout}>Log Out</button>
       </div>
@@ -596,7 +629,8 @@ function App() {
             </div>
           </div>
         </div>
-
+      ) : activeTab === 'inbox' ? (
+        <Inbox inboxMsgs={inboxMsgs} />
       ) : (
         // ── VIEW SCHEDULE TAB — unchanged ─────────────────────────────
         <div className="view-schedule-container">
