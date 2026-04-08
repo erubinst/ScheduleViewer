@@ -258,6 +258,8 @@ function App() {
   // Assignment result state
   const [showSchedules, setShowSchedules] = useState(false);
   const [assignmentRows, setAssignmentRows] = useState([]);
+  const [assignmentAccepted, setAssignmentAccepted] = useState(false);
+  const [assignmentRejected, setAssignmentRejected] = useState(false);
 
   // Current schedule (View tab)
   const [currentSchedule, setCurrentSchedule] = useState({
@@ -310,6 +312,15 @@ function App() {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleCapabilityToggle = (capability) => {
+    setSelectedCapabilities((currentCapabilities) => {
+      if (currentCapabilities.includes(capability)) {
+        return currentCapabilities.filter((item) => item !== capability);
+      }
+      return [...currentCapabilities, capability];
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Form submitted by:', username);
@@ -329,6 +340,8 @@ function App() {
         console.log('[FORM] API response:', data);
         console.log('[FORM] assignments:', data.assignments);
         setAssignmentRows(data.assignments || []);
+        setAssignmentAccepted(false);
+        setAssignmentRejected(false);
         setShowSchedules(true);
       } else {
         const error = await response.json();
@@ -342,6 +355,8 @@ function App() {
 
   const handleBack = () => {
     setShowSchedules(false);
+    setAssignmentAccepted(false);
+    setAssignmentRejected(false);
     setAssignmentRows([]);
     setSelectedCapabilities([]);
   };
@@ -349,8 +364,12 @@ function App() {
   const handleAssignmentDecision = (accepted) => {
     if (accepted) {
       console.log('[ASSIGNMENT] User accepted generated assignment');
+      setAssignmentAccepted(true);
+      setAssignmentRejected(false);
     } else {
       console.log('[ASSIGNMENT] User rejected generated assignment');
+      setAssignmentAccepted(false);
+      setAssignmentRejected(true);
     }
   };
 
@@ -358,6 +377,8 @@ function App() {
     setActiveTab(tab);
     if (tab === 'add') {
       setShowSchedules(false);
+      setAssignmentAccepted(false);
+      setAssignmentRejected(false);
       setAssignmentRows([]);
       setSelectedCapabilities([]);
     }
@@ -513,26 +534,44 @@ function App() {
               </div>
               <div className="form-group">
                 <label htmlFor="capabilities">Required Capabilities</label>
-                <select
-                  id="capabilities"
-                  multiple
-                  size={Math.min(availableCapabilities.length, 6)}
-                  value={selectedCapabilities}
-                  onChange={(e) => setSelectedCapabilities(Array.from(e.target.selectedOptions, o => o.value))}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'inherit' }}
-                >
+                <div className="capabilities-checkbox-group">
                   {availableCapabilities.length === 0 ? (
-                    <option value="" disabled>No capabilities available</option>
+                    <div className="capabilities-empty">No capabilities available</div>
                   ) : (
-                    availableCapabilities.map((cap) => (
-                      <option key={cap} value={cap}>{cap}</option>
-                    ))
+                    <div className="capabilities-checkbox-grid">
+                      {availableCapabilities.map((capability, index) => (
+                        <label key={capability} className="capability-checkbox-item" htmlFor={`capability-${index}`}>
+                          <input
+                            id={`capability-${index}`}
+                            type="checkbox"
+                            checked={selectedCapabilities.includes(capability)}
+                            onChange={() => handleCapabilityToggle(capability)}
+                          />
+                          <span>{capability}</span>
+                        </label>
+                      ))}
+                    </div>
                   )}
-                </select>
-                <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>Hold Ctrl/Cmd to select multiple</small>
+                </div>
               </div>
               <button type="submit" className="submit-button">Add Task</button>
             </form>
+          </div>
+        ) : assignmentAccepted ? (
+          <div className="schedules-container">
+            <div className="assignment-status-card">
+              <h1 className="assignment-status-title">Task added</h1>
+              <p className="assignment-status-subtitle">Your assignment was accepted successfully.</p>
+              <button className="submit-button assignment-status-btn" onClick={handleBack}>Go back to Add Task</button>
+            </div>
+          </div>
+        ) : assignmentRejected ? (
+          <div className="schedules-container">
+            <div className="assignment-status-card">
+              <h1 className="assignment-status-title">Assignment rejected</h1>
+              <p className="assignment-status-subtitle">You can review your task details and submit again.</p>
+              <button className="submit-button assignment-status-btn" onClick={handleBack}>Go back to Add Task</button>
+            </div>
           </div>
         ) : (
           // ── ASSIGNMENTS OUTPUT VIEW ── replaced raw JSON with AssignmentCard
