@@ -5,7 +5,9 @@ import DayByDaySchedule from './DayByDaySchedule';
 import AssignmentCard from './AssignmentCard';
 import Inbox from './Inbox';
 
-const API_URL = 'http://127.0.0.1:5000';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || '').replace(/\/$/, '');
+
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
 function App() {
   // Auth state
@@ -43,7 +45,7 @@ function App() {
   // Verify token with backend
   const verifyToken = async (tokenToVerify, usernameToVerify) => {
     try {
-      const response = await fetch(`${API_URL}/api/verify-token`, {
+      const response = await fetch(apiUrl('/api/verify-token'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: tokenToVerify })
@@ -68,7 +70,7 @@ function App() {
   // Load user's current schedule
   const loadCurrentSchedule = async (userToken) => {
     try {
-      const response = await fetch(`${API_URL}/api/current-schedule`, {
+      const response = await fetch(apiUrl('/api/current-schedule'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
@@ -85,7 +87,7 @@ function App() {
   // Load capabilities
   const loadCapabilities = async (userToken) => {
     try {
-      const response = await fetch(`${API_URL}/api/capabilities`, {
+      const response = await fetch(apiUrl('/api/capabilities'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
@@ -106,7 +108,7 @@ function App() {
   // Load location options
   const loadLocations = async (userToken) => {
     try {
-      const response = await fetch(`${API_URL}/api/locations`, {
+      const response = await fetch(apiUrl('/api/locations'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
@@ -129,7 +131,7 @@ function App() {
     setGanttLoading(true);
     setGanttError(null);
     try {
-      const response = await fetch(`${API_URL}/api/all-resource-schedules`, {
+      const response = await fetch(apiUrl('/api/all-resource-schedules'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
@@ -160,7 +162,7 @@ function App() {
     setAuthError('');
     setAuthLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/login`, {
+      const response = await fetch(apiUrl('/api/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: authUsername, password: authPassword })
@@ -194,7 +196,7 @@ function App() {
     setAuthError('');
     setAuthLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/register`, {
+      const response = await fetch(apiUrl('/api/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: authUsername, password: authPassword })
@@ -313,7 +315,7 @@ function App() {
     console.log('Form submitted by:', username);
     console.log('Form data:', formData);
     try {
-      const response = await fetch(`${API_URL}/api/schedule`, {
+      const response = await fetch(apiUrl('/api/schedule'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -543,6 +545,7 @@ function App() {
             <div className="current-schedule-card">
               <AssignmentCard
                 assignmentRows={assignmentRows}
+                taskData={formData}
                 onDecision={handleAssignmentDecision}
               />
             </div>

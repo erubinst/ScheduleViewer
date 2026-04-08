@@ -34,23 +34,16 @@
   margin-bottom: 14px;
 }
 
-.assignment-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 6px;
-  font-size: 15px;
-  line-height: 1.6;
+.assignment-summary-line {
+  font-size: 16px;
+  line-height: 1.7;
   color: #2c3e50;
+  margin-bottom: 4px;
 }
 
 .assignment-subline {
   margin-left: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  font-size: 13px;
+  font-size: 14px;
   color: #5f6c7b;
 }
 

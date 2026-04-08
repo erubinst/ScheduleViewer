@@ -6,7 +6,6 @@ Simple username/password system for Task Scheduler
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
-from pymongo import MongoClient
 from bson import ObjectId
 from datetime import datetime, timedelta
 import jwt
@@ -17,6 +16,7 @@ import traceback
 import pandas as pd
 
 from add_task import retrieve_current_schedule, retrieve_scenario
+from mongo_client import create_mongo_client
 from tds.executer import reload_tds, add_task
 
 app = Flask(__name__)
@@ -38,7 +38,7 @@ app.config['MONGO_URI'] = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.
 
 # Initialize
 bcrypt = Bcrypt(app)
-client = MongoClient(app.config['MONGO_URI'])
+client = create_mongo_client(app.config['MONGO_URI'])
 db = client.task_scheduler
 
 # Collections
