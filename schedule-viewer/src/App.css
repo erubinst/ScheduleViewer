@@ -223,7 +223,6 @@ body {
 
 .day-timeline {
   position: relative;
-  height: 1020px; /* 17 hours * 60px */
 }
 
 .hour-line {

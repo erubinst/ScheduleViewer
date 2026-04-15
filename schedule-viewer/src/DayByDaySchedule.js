@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { includeTaskForDisplay } from './taskFilters';
 
+const DAY_START_HOUR_UTC = 5;
+const DAY_END_HOUR_UTC = 24;
+const HOUR_HEIGHT_PX = 60;
+const VISIBLE_HOURS = DAY_END_HOUR_UTC - DAY_START_HOUR_UTC + 1;
+
 function DayByDaySchedule({ tasks }) {
   const [weekOffset, setWeekOffset] = useState(0);
   
@@ -119,16 +124,15 @@ function DayByDaySchedule({ tasks }) {
     return '#3b82f6'; 
   };
   
-  // Calculate position based on time (8am = 0, midnight = 16 hours)
+  // Calculate position based on time (5am = 0)
   const getTimePosition = (datetimeStr) => {
     const date = new Date(datetimeStr);
     const hours = date.getUTCHours();
     const minutes = date.getUTCMinutes();
     const totalMinutes = (hours * 60) + minutes;
-    const startMinutes = 8 * 60; // 8am
+    const startMinutes = DAY_START_HOUR_UTC * 60;
     const minutesFromStart = totalMinutes - startMinutes;
-    // Each hour = 60px
-    return (minutesFromStart / 60) * 60;
+    return (minutesFromStart / 60) * HOUR_HEIGHT_PX;
   };
   
   // Calculate height based on duration
@@ -136,7 +140,7 @@ function DayByDaySchedule({ tasks }) {
     const start = new Date(task.start_lb);
     const end = new Date(task.end_lb);
     const durationMinutes = (end - start) / (1000 * 60);
-    return (durationMinutes / 60) * 60; // 60px per hour
+    return (durationMinutes / 60) * HOUR_HEIGHT_PX;
   };
   
   return (
@@ -174,12 +178,13 @@ function DayByDaySchedule({ tasks }) {
         {/* Time labels column */}
         <div className="time-column">
           <div className="time-header"></div>
-          {[...Array(17)].map((_, i) => {
-            const hour = i + 8;
-            const displayHour = hour > 12 ? hour - 12 : hour;
-            const ampm = hour >= 12 ? 'PM' : 'AM';
+          {[...Array(VISIBLE_HOURS)].map((_, i) => {
+            const hour = i + DAY_START_HOUR_UTC;
+            const normalizedHour = hour % 24;
+            const displayHour = normalizedHour === 0 ? 12 : normalizedHour > 12 ? normalizedHour - 12 : normalizedHour;
+            const ampm = normalizedHour >= 12 ? 'PM' : 'AM';
             return (
-              <div key={i} className="time-label" style={{ height: '60px' }}>
+              <div key={i} className="time-label" style={{ height: `${HOUR_HEIGHT_PX}px` }}>
                 {displayHour}{ampm}
               </div>
             );
@@ -200,10 +205,10 @@ function DayByDaySchedule({ tasks }) {
                   {dayNum}</div>
               </div>
               
-              <div className="day-timeline">
+              <div className="day-timeline" style={{ height: `${VISIBLE_HOURS * HOUR_HEIGHT_PX}px` }}>
                 {/* Hour grid lines */}
-                {[...Array(17)].map((_, i) => (
-                  <div key={i} className="hour-line" style={{ top: `${i * 60}px` }}></div>
+                {[...Array(VISIBLE_HOURS)].map((_, i) => (
+                  <div key={i} className="hour-line" style={{ top: `${i * HOUR_HEIGHT_PX}px` }}></div>
                 ))}
                 
                 {/* Tasks */}
@@ -211,9 +216,10 @@ function DayByDaySchedule({ tasks }) {
                   const top = getTimePosition(task.start_lb);
                   const height = getTaskHeight(task);
                   const color = getTaskColor(task.task_name);
+                  const maxVisibleTop = (VISIBLE_HOURS - 1) * HOUR_HEIGHT_PX;
                   
-                  // Skip if position is negative (before 8am) or too large
-                  if (top < 0 || top > 1000) return null;
+                  // Skip if position is before the first visible hour or after the last visible hour
+                  if (top < 0 || top > maxVisibleTop) return null;
 
 
                   const isTravel = String(task.task_name || '').toLowerCase().includes('travel');
