@@ -639,7 +639,7 @@ function App() {
             <p className="schedule-subtitle">Welcome, {username}</p>
             <div className="current-schedule-card">
               {currentSchedule.tasks && currentSchedule.tasks.length > 0 ? (
-                <DayByDaySchedule tasks={currentSchedule.tasks} />
+                <DayByDaySchedule tasks={currentSchedule.tasks} currentUser={username} />
               ) : (
                 <div className="empty-schedule">
                   <p>No schedule available yet.</p>

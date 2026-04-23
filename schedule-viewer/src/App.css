@@ -242,16 +242,59 @@ body {
   padding: 4px 6px;
   color: white;
   font-size: 11px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
+/* Grouped travel bar: no scroll, only Details fits in short segments */
+.calendar-task--travel-group {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  padding: 2px 4px;
+}
+
+.calendar-task--travel-group .task-blue-detail-link--travel-only {
+  margin-top: 0;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.15;
+  flex-shrink: 0;
+}
+
+/* Day-by-day / calendar task hover — disabled for now (was scaling bars on mouseover)
 .calendar-task:hover {
   transform: scale(1.02);
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
   z-index: 5;
+}
+*/
+
+.daybyday-modal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-right: 44px;
+}
+
+.daybyday-modal-transport-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.daybyday-modal-transport-list li {
+  margin: 4px 0;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .task-time-small {
@@ -272,6 +315,74 @@ body {
   font-size: 10px;
   opacity: 0.9;
   margin-top: 2px;
+}
+
+/* Blue (default) day-by-day events only — opens placeholder modal */
+.task-blue-detail-link {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 9px;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.task-blue-detail-link:hover,
+.task-blue-detail-link:focus-visible {
+  color: #fff;
+  outline: 1px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 1px;
+}
+
+.daybyday-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.daybyday-modal-panel {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 12px;
+  padding: 20px 24px 24px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.daybyday-modal-panel--empty {
+  min-height: 160px;
+}
+
+.daybyday-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.daybyday-modal-close:hover {
+  background: #e2e8f0;
 }
 
 

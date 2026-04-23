@@ -1,86 +1,178 @@
 import React, { useState } from 'react';
 import { includeTaskForDisplay } from './taskFilters';
+import { buildDetailPopupTransportInfo, isPickupTask, isDropoffTask, isTravelTask } from './taskRelationshipHelpers';
 
 const DAY_START_HOUR_UTC = 5;
 const DAY_END_HOUR_UTC = 24;
 const HOUR_HEIGHT_PX = 60;
 const VISIBLE_HOURS = DAY_END_HOUR_UTC - DAY_START_HOUR_UTC + 1;
 
-function DayByDaySchedule({ tasks }) {
+const CALENDAR_BLUE = '#3b82f6';
+const TRAVEL_GRAY = 'rgba(148, 163, 184, 0.55)';
+
+function taskDisplayName(task) {
+  const v = task.task_name ?? task.taskName ?? task.order;
+  return v != null ? String(v).trim() : '';
+}
+
+function normalizedTitle(task) {
+  return taskDisplayName(task).toLowerCase().replace(/_/g, ' ');
+}
+
+function isTravelOrTransitTask(task) {
+  const n = normalizedTitle(task);
+  return (
+    n.startsWith('travel') ||
+    n.startsWith('pickup') ||
+    n.startsWith('pick up') ||
+    n.startsWith('dropoff') ||
+    n.startsWith('drop off')
+  );
+}
+
+function isPresenceTask(task) {
+  const c = task?.capability;
+  return typeof c === 'string' && c.includes('presence');
+}
+
+function getTaskColorFromTitle(task) {
+  const n = normalizedTitle(task);
+  if (n.startsWith('pickup') || n.startsWith('pick up') || n.startsWith('dropoff') || n.startsWith('drop off')) {
+    return '#f59e0b';
+  }
+  if (n.startsWith('travel')) return TRAVEL_GRAY;
+  return CALENDAR_BLUE;
+}
+
+function isBlueCalendarEvent(task) {
+  return getTaskColorFromTitle(task) === CALENDAR_BLUE;
+}
+
+/**
+ * Groups travel/pickup/dropoff tasks that belong to the same trip into a single
+ * rendered bar. Two transit tasks are in the same group if they overlap or are
+ * within 5 minutes of each other (pickup → travel chains are adjacent, not overlapping).
+ *
+ * Returns an array of either:
+ *   { type: 'presence', task }
+ *   { type: 'travel-group', tasks, start_lb, end_lb }
+ */
+function groupDayTasks(dayTasks) {
+  // Separate presence (blue) from transit tasks
+  const presence = [];
+  const transit = [];
+
+  for (const task of dayTasks) {
+    if (isTravelOrTransitTask(task)) {
+      transit.push(task);
+    } else {
+      presence.push(task);
+    }
+  }
+
+  // Sort transit by start time
+  const sorted = [...transit].sort(
+    (a, b) => new Date(a.start_lb) - new Date(b.start_lb)
+  );
+
+  // Cluster into groups where consecutive tasks are within 5 min of each other
+  const GAP_MS = 5 * 60 * 1000;
+  const groups = [];
+  let current = null;
+
+  for (const task of sorted) {
+    const taskStart = new Date(task.start_lb).getTime();
+    const taskEnd = new Date(task.end_lb).getTime();
+
+    if (!current) {
+      current = { tasks: [task], startMs: taskStart, endMs: taskEnd };
+    } else {
+      const gap = taskStart - current.endMs;
+      if (gap <= GAP_MS) {
+        current.tasks.push(task);
+        current.endMs = Math.max(current.endMs, taskEnd);
+      } else {
+        groups.push(current);
+        current = { tasks: [task], startMs: taskStart, endMs: taskEnd };
+      }
+    }
+  }
+  if (current) groups.push(current);
+
+  // Build final render list: presence tasks + travel groups, each tagged with type
+  const result = [];
+
+  for (const p of presence) {
+    result.push({ type: 'presence', task: p });
+  }
+
+  for (const g of groups) {
+    // Reconstruct synthetic start/end ISO strings from the cluster boundaries
+    const startTask = g.tasks.reduce((a, b) =>
+      new Date(a.start_lb) < new Date(b.start_lb) ? a : b
+    );
+    const endTask = g.tasks.reduce((a, b) =>
+      new Date(a.end_lb) > new Date(b.end_lb) ? a : b
+    );
+    result.push({
+      type: 'travel-group',
+      tasks: g.tasks,
+      start_lb: startTask.start_lb,
+      end_lb: endTask.end_lb,
+    });
+  }
+
+  return result;
+}
+
+function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
   const [weekOffset, setWeekOffset] = useState(0);
-  
-  // finds the date --> just highlighting the current date
+  const [detailTask, setDetailTask] = useState(null);
+  const [travelGroup, setTravelGroup] = useState(null);   // for travel popup
+  const [deleteCandidate, setDeleteCandidate] = useState(null); // for delete confirm
+
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   // Group tasks by date
   const tasksByDate = {};
-  
-  // tasks.forEach(task => {
   (tasks || []).filter(includeTaskForDisplay).forEach(task => {
-    // Parse the start_lb date (ISO format: "2026-01-14T08:01:00.000+00:00" or GMT format)
     const date = new Date(task.start_lb);
-    const dateStr = date.toISOString().split('T')[0]; // Get "2026-01-14"
-    
-    if (!tasksByDate[dateStr]) {
-      tasksByDate[dateStr] = [];
-    }
-    
+    const dateStr = date.toISOString().split('T')[0];
+    if (!tasksByDate[dateStr]) tasksByDate[dateStr] = [];
     tasksByDate[dateStr].push(task);
   });
-  
-  // Sort dates and get all unique dates
+
   const allDates = Object.keys(tasksByDate).sort();
-  
+
   if (allDates.length === 0) {
     return <div className="empty-schedule">No tasks scheduled</div>;
   }
-  
-  // Calculate weeks
-  const daysPerWeek = 7;
-  const totalWeeks = Math.ceil(allDates.length / daysPerWeek);
-  const startIdx = weekOffset * daysPerWeek;
-  const endIdx = Math.min(startIdx + daysPerWeek, allDates.length);
-
-
-  // only built using dates from task that exist, so if no task exists for a date
-  // then no date exists in calendar
-  
-  // const currentWeekDates = allDates.slice(startIdx, endIdx);
 
   const getSunday = (offset) => {
     const now = new Date();
-    // want to change now to previous or next beginning of the week dpeending on input
-    now.setDate(now.getDate() + (offset * 7));
+    now.setDate(now.getDate() + offset * 7);
     const dayOfWeek = now.getDay();
-    const diff = now.getDate() - dayOfWeek;
-
-    const sunday = new Date(now.setDate(diff));
-    sunday.setHours(0,0,0,0);
+    const sunday = new Date(now.setDate(now.getDate() - dayOfWeek));
+    sunday.setHours(0, 0, 0, 0);
     return sunday;
   };
 
   const startOfViewWeek = getSunday(weekOffset);
-
   const currentWeekDates = [];
   for (let i = 0; i < 7; i++) {
-    const nextDay = new Date(startOfViewWeek);
-    nextDay.setDate(startOfViewWeek.getDate() + i);
-
-    const dateStr = nextDay.toISOString().split('T')[0];
-    currentWeekDates.push(dateStr);
+    const d = new Date(startOfViewWeek);
+    d.setDate(startOfViewWeek.getDate() + i);
+    currentWeekDates.push(d.toISOString().split('T')[0]);
   }
 
-  
-  // Format date for column header
   const formatDateHeader = (dateStr) => {
     const date = new Date(dateStr + 'T00:00:00Z');
     const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
     const dayNum = date.getUTCDate();
     return { dayName, dayNum };
   };
-  
-  // Format time for display
+
   const formatTime = (datetimeStr) => {
     const date = new Date(datetimeStr);
     const hours = date.getUTCHours();
@@ -90,99 +182,263 @@ function DayByDaySchedule({ tasks }) {
     const displayMinutes = minutes.toString().padStart(2, '0');
     return `${displayHour}:${displayMinutes}${ampm}`;
   };
-  
 
-  // removing pickup/dropoff differentiation in schedule view
-  // const mergedTasks = tasks.reduce((acc, currentTask) =>
-  // {
-  //   const name = currentTask.task_name.toLowerCase();
-  //   if (name.includes('pickup') || name.includes('dropoff')) {
-  //     // finding travel task closest in time to pickup/dropoff
-  //     const travelTask = acc.find(t =>
-  //       t.task_name.toLowerCase().includes('travel') && 
-  //       Math.abs(new Date(t.start_lb) - new Date(currentTask.start_lb)) < 3600000
-  //       );
-  //     if (travelTask) {
-  //       travelTask.rideDetails = (travelTask.rideDetails ? travelTask.rideDetails + ", " : "") + currentTask.task_name;
-  //       return acc;
-  //     }
-  //   }
-  //   acc.push(currentTask);
-  //   return acc;
-  // }, []);
-
-
-  // Get task color based on task name
-  const getTaskColor = (taskName) => {
-    // gray one
-    if (taskName.includes('travel')) return 'rgba(148, 163, 184, 0.55)';
-    // yellow one
-    if (taskName.includes('pickup') || taskName.includes('dropoff')) return '#f59e0b';
-    
-    
-    //default blue
-    return '#3b82f6'; 
-  };
-  
-  // Calculate position based on time (5am = 0)
   const getTimePosition = (datetimeStr) => {
     const date = new Date(datetimeStr);
     const hours = date.getUTCHours();
     const minutes = date.getUTCMinutes();
-    const totalMinutes = (hours * 60) + minutes;
+    const totalMinutes = hours * 60 + minutes;
     const startMinutes = DAY_START_HOUR_UTC * 60;
-    const minutesFromStart = totalMinutes - startMinutes;
-    return (minutesFromStart / 60) * HOUR_HEIGHT_PX;
+    return ((totalMinutes - startMinutes) / 60) * HOUR_HEIGHT_PX;
   };
-  
-  // Calculate height based on duration
-  const getTaskHeight = (task) => {
-    const start = new Date(task.start_lb);
-    const end = new Date(task.end_lb);
-    const durationMinutes = (end - start) / (1000 * 60);
+
+  const getHeightFromTimes = (start_lb, end_lb) => {
+    const durationMinutes = (new Date(end_lb) - new Date(start_lb)) / (1000 * 60);
     return (durationMinutes / 60) * HOUR_HEIGHT_PX;
   };
-  
-  return (
-    // navigating different weeks in the calendar
-    <div className="calendar-view">
-      {/* Week navigation */}
-      
-        <div className="week-navigation">
-          <button 
-            className="week-nav-btn"
-            onClick={() => setWeekOffset(weekOffset - 1)}
-            // disabled={weekOffset === 0}
-          >
-            ← Previous Week
-          </button>
-          <span className="week-indicator">
-            {/* Week {weekOffset + 1} of {totalWeeks} */}
-            {startOfViewWeek.toLocaleDateString('en-US', { 
-              month: 'long', 
-              year: 'numeric' 
-            })}
-          </span>
-          <button 
-            className="week-nav-btn"
-            onClick={() => setWeekOffset(weekOffset + 1)}
-            // disabled={weekOffset >= totalWeeks - 1}
-          >
-            Next Week →
-          </button>
-        </div>
 
-      
-      {/* Calendar grid */}
+  const renderTransportLines = (lines) => {
+    if (!lines || (lines.length === 1 && lines[0] === 'N/A')) {
+      return <p style={{ marginTop: 0 }}>N/A</p>;
+    }
+    return (
+      <ul className="daybyday-modal-transport-list">
+        {lines.map((line, i) => (
+          <li key={`${i}-${line.slice(0, 40)}`}>{line}</li>
+        ))}
+      </ul>
+    );
+  };
+
+  // ── Presence event modal data ──────────────────────────────────────────────
+  let transportModal = null;
+  if (detailTask != null) {
+    const modalDayKey = new Date(detailTask.start_lb).toISOString().split('T')[0];
+    const allTasksForDay = (tasks || []).filter(
+      (t) => new Date(t.start_lb).toISOString().split('T')[0] === modalDayKey
+    );
+    transportModal = buildDetailPopupTransportInfo(detailTask, currentUser, allTasksForDay, formatTime);
+  }
+
+  // ── Travel group modal data ────────────────────────────────────────────────
+  // Use the first travel task in the group as the "anchor" for transport info
+  let travelModal = null;
+  if (travelGroup != null) {
+    const anchorTask = travelGroup.tasks.find(
+      (t) => (t.capability === 'travel') || normalizedTitle(t).startsWith('travel')
+    ) ?? travelGroup.tasks[0];
+    const modalDayKey = new Date(anchorTask.start_lb).toISOString().split('T')[0];
+    const allTasksForDay = (tasks || []).filter(
+      (t) => new Date(t.start_lb).toISOString().split('T')[0] === modalDayKey
+    );
+    // Scope to this gray bar’s segments only so DRIVING / pickup / dropoff times aren’t mixed with other trips
+    travelModal = buildDetailPopupTransportInfo(
+      anchorTask,
+      currentUser,
+      allTasksForDay,
+      formatTime,
+      travelGroup.tasks
+    );
+  }
+
+  return (
+    <div className="calendar-view">
+
+      {/* ── Presence event detail modal ───────────────────────────────────── */}
+      {detailTask != null && (
+        <div
+          className="daybyday-modal-overlay"
+          role="presentation"
+          onClick={() => setDetailTask(null)}
+        >
+          <div
+            className="daybyday-modal-panel daybyday-modal-panel--empty"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Event details"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="daybyday-modal-close"
+              aria-label="Close"
+              onClick={() => setDetailTask(null)}
+            >
+              x
+            </button>
+            <div className="daybyday-modal-content">
+              <h1 style={{ fontWeight: 700, marginTop: 0 }}>
+                {taskDisplayName(detailTask) || '—'}
+              </h1>
+              <p><strong>LOCATION:</strong> {detailTask.location ?? '—'}</p>
+              <p><strong>START:</strong> {formatTime(detailTask.start_lb)}</p>
+              <p><strong>END:</strong> {formatTime(detailTask.end_lb)}</p>
+
+              {transportModal && (
+                <p style={{ marginTop: 12, fontSize: 14, opacity: 0.9 }}>
+                  {transportModal.summaryLine}
+                </p>
+              )}
+
+              <hr />
+
+              {transportModal && (
+                <>
+                  <p style={{ marginBottom: 4 }}><strong>DRIVING:</strong></p>
+                  {renderTransportLines(transportModal.drivingLines)}
+                  <p style={{ marginBottom: 4, marginTop: 12 }}><strong>PICKING UP:</strong></p>
+                  {renderTransportLines(transportModal.pickingUpLines)}
+                  <p style={{ marginBottom: 4, marginTop: 12 }}><strong>PICKED UP BY:</strong></p>
+                  {renderTransportLines(transportModal.pickedUpByLines)}
+                  <p style={{ marginBottom: 4, marginTop: 12 }}><strong>DROPPED OFF BY:</strong></p>
+                  {renderTransportLines(transportModal.droppedOffByLines)}
+                  <p style={{ marginBottom: 4, marginTop: 12 }}><strong>DROPPING OFF:</strong></p>
+                  {renderTransportLines(transportModal.droppingOffLines)}
+                </>
+              )}
+
+              {/* Delete button — presence events only */}
+              <hr style={{ marginTop: 16 }} />
+              <button
+                type="button"
+                className="daybyday-modal-delete-btn"
+                onClick={() => {
+                  setDetailTask(null);
+                  setDeleteCandidate(detailTask);
+                }}
+              >
+                🗑 Delete Event
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Travel group detail modal ─────────────────────────────────────── */}
+      {travelGroup != null && (
+        <div
+          className="daybyday-modal-overlay"
+          role="presentation"
+          onClick={() => setTravelGroup(null)}
+        >
+          <div
+            className="daybyday-modal-panel daybyday-modal-panel--travel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Travel details"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="daybyday-modal-close"
+              aria-label="Close"
+              onClick={() => setTravelGroup(null)}
+            >
+              x
+            </button>
+            <div className="daybyday-modal-content">
+              <h1 style={{ fontWeight: 700, marginTop: 0 }}>Travel</h1>
+              <p><strong>START:</strong> {formatTime(travelGroup.start_lb)}</p>
+              <p><strong>END:</strong> {formatTime(travelGroup.end_lb)}</p>
+
+              <hr />
+
+              {travelModal && (
+                <>
+                  <p style={{ marginBottom: 4 }}><strong>DRIVING:</strong></p>
+                  {renderTransportLines(travelModal.drivingLines)}
+                  <p style={{ marginBottom: 4, marginTop: 12 }}><strong>PICKING UP:</strong></p>
+                  {renderTransportLines(travelModal.pickingUpLines)}
+                  <p style={{ marginBottom: 4, marginTop: 12 }}><strong>DROPPING OFF:</strong></p>
+                  {renderTransportLines(travelModal.droppingOffLines)}
+                </>
+              )}
+
+              {/* Segments list — shows individual tasks inside the group */}
+              <hr style={{ marginTop: 16 }} />
+              <p style={{ marginBottom: 4 }}><strong>SEGMENTS:</strong></p>
+              <ul className="daybyday-modal-transport-list">
+                {travelGroup.tasks.map((t, i) => (
+                  <li key={i}>
+                    {formatTime(t.start_lb)} – {formatTime(t.end_lb)}{' '}
+                    <span style={{ opacity: 0.6, fontSize: 12 }}>
+                      {taskDisplayName(t)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation modal ─────────────────────────────────────── */}
+      {deleteCandidate != null && (
+        <div
+          className="daybyday-modal-overlay"
+          role="presentation"
+          onClick={() => setDeleteCandidate(null)}
+        >
+          <div
+            className="daybyday-modal-panel daybyday-modal-panel--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Confirm delete"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="daybyday-modal-content">
+              <h2 style={{ fontWeight: 700, marginTop: 0 }}>Delete Event?</h2>
+              <p style={{ marginBottom: 24 }}>
+                Are you sure you want to delete{' '}
+                <strong>{taskDisplayName(deleteCandidate) || 'this event'}</strong>?
+                This cannot be undone.
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  type="button"
+                  className="daybyday-confirm-btn daybyday-confirm-btn--danger"
+                  onClick={() => {
+                    onDeleteTask?.(deleteCandidate);
+                    setDeleteCandidate(null);
+                  }}
+                >
+                  Yes, Delete
+                </button>
+                <button
+                  type="button"
+                  className="daybyday-confirm-btn daybyday-confirm-btn--cancel"
+                  onClick={() => setDeleteCandidate(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Week navigation ───────────────────────────────────────────────── */}
+      <div className="week-navigation">
+        <button className="week-nav-btn" onClick={() => setWeekOffset(weekOffset - 1)}>
+          ← Previous Week
+        </button>
+        <span className="week-indicator">
+          {startOfViewWeek.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        </span>
+        <button className="week-nav-btn" onClick={() => setWeekOffset(weekOffset + 1)}>
+          Next Week →
+        </button>
+      </div>
+
+      {/* ── Calendar grid ─────────────────────────────────────────────────── */}
       <div className="calendar-grid">
-        {/* Time labels column */}
+        {/* Time labels */}
         <div className="time-column">
           <div className="time-header"></div>
           {[...Array(VISIBLE_HOURS)].map((_, i) => {
-            const hour = i + DAY_START_HOUR_UTC;
-            const normalizedHour = hour % 24;
-            const displayHour = normalizedHour === 0 ? 12 : normalizedHour > 12 ? normalizedHour - 12 : normalizedHour;
-            const ampm = normalizedHour >= 12 ? 'PM' : 'AM';
+            const hour = (i + DAY_START_HOUR_UTC) % 24;
+            const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+            const ampm = hour >= 12 ? 'PM' : 'AM';
             return (
               <div key={i} className="time-label" style={{ height: `${HOUR_HEIGHT_PX}px` }}>
                 {displayHour}{ampm}
@@ -190,59 +446,84 @@ function DayByDaySchedule({ tasks }) {
             );
           })}
         </div>
-        
+
         {/* Day columns */}
         {currentWeekDates.map(dateStr => {
           const { dayName, dayNum } = formatDateHeader(dateStr);
           const dayTasks = tasksByDate[dateStr] || [];
-          
+          const maxVisibleTop = (VISIBLE_HOURS - 1) * HOUR_HEIGHT_PX;
+
+          // Group travel/pickup/dropoff into clusters; keep presence tasks separate
+          const renderItems = groupDayTasks(dayTasks);
+
           return (
             <div key={dateStr} className="day-column">
               <div className="day-header">
                 <div className="day-name">{dayName}</div>
-                {/* <div className="day-number">{dayNum}</div> */}
                 <div className={`day-number ${dateStr === todayStr ? 'today-highlight' : ''}`}>
-                  {dayNum}</div>
+                  {dayNum}
+                </div>
               </div>
-              
+
               <div className="day-timeline" style={{ height: `${VISIBLE_HOURS * HOUR_HEIGHT_PX}px` }}>
                 {/* Hour grid lines */}
                 {[...Array(VISIBLE_HOURS)].map((_, i) => (
-                  <div key={i} className="hour-line" style={{ top: `${i * HOUR_HEIGHT_PX}px` }}></div>
+                  <div key={i} className="hour-line" style={{ top: `${i * HOUR_HEIGHT_PX}px` }} />
                 ))}
-                
-                {/* Tasks */}
-                {dayTasks.map((task, idx) => {
-                  const top = getTimePosition(task.start_lb);
-                  const height = getTaskHeight(task);
-                  const color = getTaskColor(task.task_name);
-                  const maxVisibleTop = (VISIBLE_HOURS - 1) * HOUR_HEIGHT_PX;
-                  
-                  // Skip if position is before the first visible hour or after the last visible hour
-                  if (top < 0 || top > maxVisibleTop) return null;
 
+                {/* Render items */}
+                {renderItems.map((item, idx) => {
+                  if (item.type === 'presence') {
+                    const { task } = item;
+                    const top = getTimePosition(task.start_lb);
+                    const height = getHeightFromTimes(task.start_lb, task.end_lb);
+                    if (top < 0 || top > maxVisibleTop) return null;
 
-                  const isTravel = String(task.task_name || '').toLowerCase().includes('travel');
-                  
-                  return (
-                    <div
-                      key={idx}
-                      className="calendar-task"
-                      style={{
-                        top: `${top}px`,
-                        height: `${height}px`,
-                        backgroundColor: color
-                      }}
-                    >
-                      {!isTravel && (
-                      <>
+                    return (
+                      <div
+                        key={`presence-${idx}-${task.start_lb}`}
+                        className="calendar-task"
+                        style={{ top: `${top}px`, height: `${height}px`, backgroundColor: CALENDAR_BLUE }}
+                      >
                         <div className="task-time-small">{formatTime(task.start_lb)}</div>
-                        <div className="task-name-small">{task.task_name}</div>
-                        {task.location && <div className="task-location-small">📍 {task.location}</div>}
-                      </>
-                      )}
-                    </div>
-                  );
+                        <div className="task-name-small">{taskDisplayName(task) || '—'}</div>
+                        {task.location && (
+                          <div className="task-location-small">📍 {task.location}</div>
+                        )}
+                        <button
+                          type="button"
+                          className="task-blue-detail-link"
+                          onClick={(e) => { e.stopPropagation(); setDetailTask(task); }}
+                        >
+                          Details
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  if (item.type === 'travel-group') {
+                    const top = getTimePosition(item.start_lb);
+                    const height = getHeightFromTimes(item.start_lb, item.end_lb);
+                    if (top < 0 || top > maxVisibleTop) return null;
+
+                    return (
+                      <div
+                        key={`travel-${idx}-${item.start_lb}`}
+                        className="calendar-task calendar-task--travel-group"
+                        style={{ top: `${top}px`, height: `${height}px`, backgroundColor: TRAVEL_GRAY }}
+                      >
+                        <button
+                          type="button"
+                          className="task-blue-detail-link task-blue-detail-link--travel-only"
+                          onClick={(e) => { e.stopPropagation(); setTravelGroup(item); }}
+                        >
+                          Details
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return null;
                 })}
               </div>
             </div>
