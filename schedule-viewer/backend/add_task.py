@@ -7,10 +7,14 @@
 
 from tds.executer import add_task
 import pandas as pd
+import os
 
 from mongo_client import create_mongo_client
 
-MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
+MONGO_URI = os.getenv(
+    'MONGO_URI',
+    'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
+)
 
 def retrieve_current_schedule(scenario_name):
     """Retrieve the current task schedule for a given scenario from MongoDB

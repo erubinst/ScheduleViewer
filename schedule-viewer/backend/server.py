@@ -18,6 +18,7 @@ import pandas as pd
 from add_task import retrieve_current_schedule, retrieve_scenario
 from mongo_client import create_mongo_client
 from tds.executer import reload_tds, add_task
+from pymongo.errors import ServerSelectionTimeoutError, AutoReconnect
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
@@ -34,7 +35,10 @@ app.json_encoder = CustomJSONEncoder
 # Configuration
 app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
 # MongoDB Atlas connection
-app.config['MONGO_URI'] = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
+app.config['MONGO_URI'] = os.getenv(
+    'MONGO_URI',
+    'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
+)
 
 # Initialize
 bcrypt = Bcrypt(app)
@@ -46,6 +50,7 @@ users = db.users
 schedules = db.schedules
 scenarios = db.scenarios
 resource_schedules = db.resource_schedules
+inbox_messages = db.inbox_messages
 
 # Maps username -> TDS object for the duration of their session
 user_tds_store = {}
@@ -172,6 +177,13 @@ def datetime_to_epoch_minutes(datetime_str, epoch_str):
     return int((dt - epoch).total_seconds() // 60)
 
 
+def redact_mongo_uri(uri):
+    """Mask credentials in MongoDB URIs before logging."""
+    if not uri or '@' not in uri:
+        return uri
+    return re.sub(r'(mongodb\+srv://)([^@]+)(@)', r'\1***:***\3', uri)
+
+
 def initialize_user_tds(username):
     """Fetch scenario + schedule from MongoDB, call reload_tds, and store the result."""
     try:
@@ -272,7 +284,14 @@ def login():
 
         print(f"[LOGIN] Attempting login for user: {username}")
 
-        user = users.find_one({'username': username})
+        try:
+            user = users.find_one({'username': username})
+        except (ServerSelectionTimeoutError, AutoReconnect) as e:
+            print(f"[LOGIN] MongoDB connectivity error: {type(e).__name__}: {e}")
+            return jsonify({
+                'error': 'Database is temporarily unreachable. Check Atlas network access/VPN and TLS connectivity.'
+            }), 503
+
         if not user:
             print(f"[LOGIN] User not found: {username}")
             return jsonify({'error': 'Invalid username or password'}), 401
@@ -332,6 +351,120 @@ def get_user_scenario_name(username):
         sort=[('created_at', -1)]
     )
     return rschedule.get('scenario_name') if rschedule else None
+
+
+def task_exists_in_scenario(scenario_name, task_name):
+    """Check whether a task with this name already exists in the scenario."""
+    if not scenario_name or not task_name:
+        return False
+    existing = resource_schedules.find_one(
+        {
+            'scenario_name': scenario_name,
+            'tasks.task_name': {
+                '$regex': f'^{re.escape(task_name)}$',
+                '$options': 'i'
+            }
+        },
+        {'_id': 1}
+    )
+    return existing is not None
+
+
+def _extract_resource_and_capability(raw):
+    resource = re.search(r'<Resource (\w+)', str(raw or ''))
+    capability = re.search(r"'([^']+)'\)$", str(raw or ''))
+    return (
+        resource.group(1) if resource else None,
+        capability.group(1) if capability else None,
+    )
+
+
+def _extract_driver(raw):
+    match = re.search(r'<Resource (\w+)', str(raw or ''))
+    return match.group(1) if match else None
+
+
+def _build_assignment_inbox_docs(assignments, task_data, scenario_name, created_by):
+    """Create one inbox document per involved person with combined assignment+transport text."""
+    task_name = (task_data or {}).get('taskName') or 'Unnamed Task'
+    task_type = (task_data or {}).get('taskType') or 'task'
+    task_location = (task_data or {}).get('location') or 'unknown location'
+    earliest_start = (task_data or {}).get('earliestStartTime')
+
+    recipient_context = {}
+    for row in (assignments or []):
+        for cap in (row.get('capability_assignment_enriched') or []):
+            resource, capability = _extract_resource_and_capability(cap.get('raw'))
+            if not resource:
+                continue
+            ctx = recipient_context.setdefault(resource, {'caps': [], 'transports': []})
+            cap_text = capability or 'required capability'
+            prior_loc = cap.get('prior_task_location')
+            if prior_loc and task_location:
+                ctx['caps'].append(f"You are assigned to {cap_text} for '{task_name}', traveling from {prior_loc} to {task_location}.")
+            else:
+                ctx['caps'].append(f"You are assigned to {cap_text} for '{task_name}'.")
+
+        for t in (row.get('transport_assignment') or []):
+            driver = _extract_driver(t.get('before_resource'))
+            passenger = t.get('driven_resource')
+            pickup_loc = t.get('prior_task_location') or 'pickup location'
+
+            if driver:
+                dctx = recipient_context.setdefault(driver, {'caps': [], 'transports': []})
+                if passenger:
+                    dctx['transports'].append(
+                        f"Transport needed: pick up {passenger} at {pickup_loc} and bring them to {task_location}."
+                    )
+                else:
+                    dctx['transports'].append(
+                        f"Transport needed for '{task_name}' from {pickup_loc} to {task_location}."
+                    )
+
+            if passenger:
+                pctx = recipient_context.setdefault(passenger, {'caps': [], 'transports': []})
+                if driver:
+                    pctx['transports'].append(
+                        f"Transport update: {driver} will pick you up at {pickup_loc} and bring you to {task_location}."
+                    )
+
+    docs = []
+    created_at = datetime.utcnow()
+    for recipient, ctx in recipient_context.items():
+        lines = []
+        lines.extend(ctx.get('caps') or [])
+        lines.extend(ctx.get('transports') or [])
+        if not lines:
+            continue
+        body = ' '.join(lines)
+        schedule_text = f" Task type: {task_type}." if task_type else ''
+        start_text = f" Earliest start: {earliest_start}." if earliest_start else ''
+        docs.append({
+            'recipient': recipient,
+            'sender': 'Task Scheduler',
+            'subject': f"Assignment for {task_name}",
+            'message': f"{body}{schedule_text}{start_text}",
+            'task_name': task_name,
+            'task_type': task_type,
+            'task_location': task_location,
+            'scenario_name': scenario_name,
+            'created_by': created_by,
+            'created_at': created_at,
+            'read': False,
+        })
+    return docs
+
+
+def _serialize_inbox_doc(doc):
+    return {
+        'id': str(doc.get('_id')),
+        'recipient': doc.get('recipient'),
+        'sender': doc.get('sender'),
+        'subject': doc.get('subject'),
+        'message': doc.get('message'),
+        'created_at': _serialize_value(doc.get('created_at')),
+        'read': bool(doc.get('read', False)),
+    }
 
 
 @app.route('/api/locations', methods=['POST'])
@@ -419,14 +552,21 @@ def create_schedule():
 
         token = data.get('token')
         task_data = data.get('taskData')
+        selected_capabilities = data.get('selectedCapabilities', [])
 
         print("[SCHEDULE] Incoming request")
         print(f"[SCHEDULE] Payload keys: {list(data.keys())}")
         print(f"[SCHEDULE] taskData type: {type(task_data).__name__}")
-        print(f"[SCHEDULE] selectedCapabilities type: {type(data.get('selectedCapabilities')).__name__}")
+        print(f"[SCHEDULE] selectedCapabilities type: {type(selected_capabilities).__name__}")
 
         if not isinstance(task_data, dict):
             return jsonify({'error': 'taskData must be an object'}), 400
+
+        if selected_capabilities is None:
+            selected_capabilities = []
+        if not isinstance(selected_capabilities, list):
+            return jsonify({'error': 'selectedCapabilities must be an array'}), 400
+        selected_capabilities = [str(c).strip() for c in selected_capabilities if str(c).strip()]
 
         required_task_fields = ['taskName', 'taskType', 'duration', 'earliestStartTime', 'latestDueDate', 'location']
         missing_fields = [field for field in required_task_fields if task_data.get(field) in [None, '']]
@@ -440,6 +580,13 @@ def create_schedule():
 
         username = payload['username']
         print(f"[SCHEDULE] User verified: {username}")
+        scenario_name = get_user_scenario_name(username)
+        if not scenario_name:
+            return jsonify({'error': 'No scenario is associated with this user'}), 400
+
+        task_name = str(task_data.get('taskName') or '').strip()
+        if task_exists_in_scenario(scenario_name, task_name):
+            return jsonify({'error': f"Task '{task_name}' already exists. Please choose a unique task name."}), 409
 
         tds = user_tds_store.get(username)
         if tds is None:
@@ -453,7 +600,6 @@ def create_schedule():
         epoch_date = user_epoch_store.get(username)
         if not epoch_date:
             print(f"[SCHEDULE] No cached epoch_date for {username}; loading from scenario")
-            scenario_name = get_user_scenario_name(username)
             if scenario_name:
                 scenario_data = retrieve_scenario(scenario_name)
                 epoch_date = scenario_data[2]
@@ -467,14 +613,16 @@ def create_schedule():
             duration_value = parse_positive_int(task_data.get('duration'), 'duration')
             est_value = datetime_to_epoch_minutes(task_data.get('earliestStartTime'), epoch_date)
             lft_value = datetime_to_epoch_minutes(task_data.get('latestDueDate'), epoch_date)
+            if lft_value < est_value:
+                raise ValueError('latestDueDate must be on or after earliestStartTime')
             print(f"[SCHEDULE] Parsed times -> est: {est_value}, lft: {lft_value}, duration: {duration_value}")
         except ValueError as e:
             print(f"[SCHEDULE] Validation error: {e}")
             return jsonify({'error': str(e)}), 400
 
         new_task_rows = [{
-            'task_name': task_data.get('taskName'),
-            'required_capabilities': data.get('selectedCapabilities', []),
+            'task_name': task_name,
+            'required_capabilities': selected_capabilities,
             'locations': [task_data.get('location'), task_data.get('location')],
             'est': est_value,
             'lft': lft_value,
@@ -484,7 +632,16 @@ def create_schedule():
 
         new_task_df = pd.DataFrame(new_task_rows)
         print(f"[SCHEDULE] Calling add_task with rows: {len(new_task_df)}")
-        assignments_df = add_task(tds, new_task_df)
+        try:
+            assignments_df = add_task(tds, new_task_df)
+        except Exception as e:
+            print(f"[SCHEDULE] add_task failed ({type(e).__name__}): {e}")
+            print(f"[SCHEDULE] Reinitializing TDS after add_task failure for {username}")
+            initialize_user_tds(username)
+            message = str(e)
+            if 'already exists' in message or 'Inconsistent STN' in message:
+                return jsonify({'error': message}), 400
+            return jsonify({'error': f"Failed to create task assignment: {message}"}), 500
         print(f"[SCHEDULE] add_task returned type: {type(assignments_df).__name__}")
 
         print(f"[SCHEDULE] Assignments DF shape: {assignments_df.shape if hasattr(assignments_df, 'shape') else 'N/A'}")
@@ -498,7 +655,6 @@ def create_schedule():
             print(f"[SCHEDULE] First output row: {output_rows[0]}")
 
         # Enrich with timing and location from resource_schedules
-        scenario_name = get_user_scenario_name(username)
         output_rows = enrich_assignments_with_task_info(output_rows, scenario_name)
         print(f"[SCHEDULE] Enrichment complete for scenario: {scenario_name}")
 
@@ -507,6 +663,11 @@ def create_schedule():
             'assignments': output_rows
         }), 200
 
+    except (ServerSelectionTimeoutError, AutoReconnect) as e:
+        print(f"[SCHEDULE] MongoDB connectivity error: {type(e).__name__}: {e}")
+        return jsonify({
+            'error': 'Database is temporarily unreachable. Check Atlas network access/VPN and TLS connectivity.'
+        }), 503
     except Exception as e:
         print(f"[SCHEDULE] Unhandled error ({type(e).__name__}): {e}")
         try:
@@ -514,7 +675,7 @@ def create_schedule():
         except Exception:
             print("[SCHEDULE] Raw request body unavailable")
         traceback.print_exc()
-        return jsonify({'error': 'Failed to create schedule'}), 500
+        return jsonify({'error': f'Failed to create schedule: {type(e).__name__}: {e}'}), 500
 
 
 @app.route('/api/current-schedule', methods=['POST'])
@@ -605,6 +766,76 @@ def get_all_resource_schedules():
         return jsonify({'error': 'Failed to retrieve schedules'}), 500
 
 
+@app.route('/api/assignment-decision', methods=['POST'])
+def save_assignment_decision():
+    """
+    Persist inbox messages when a generated assignment is accepted.
+    Expects: {
+      "token": "jwt",
+      "accepted": true,
+      "taskData": {...},
+      "assignments": [...]
+    }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        token = data.get('token')
+        accepted = bool(data.get('accepted'))
+        task_data = data.get('taskData') or {}
+        assignments = data.get('assignments') or []
+
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+
+        username = payload['username']
+        if not accepted:
+            return jsonify({'message': 'Assignment rejection recorded'}), 200
+
+        scenario_name = get_user_scenario_name(username)
+        docs = _build_assignment_inbox_docs(assignments, task_data, scenario_name, username)
+        if not docs:
+            return jsonify({'message': 'No assignment recipients found', 'created_count': 0}), 200
+
+        inbox_messages.insert_many(docs)
+        return jsonify({'message': 'Inbox messages created', 'created_count': len(docs)}), 201
+
+    except (ServerSelectionTimeoutError, AutoReconnect) as e:
+        print(f"Save assignment decision DB error: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Database is temporarily unreachable'}), 503
+    except Exception as e:
+        print(f"Save assignment decision error: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to save assignment decision'}), 500
+
+
+@app.route('/api/inbox', methods=['POST'])
+def get_inbox_messages():
+    """Fetch inbox messages for the authenticated user/resource."""
+    try:
+        data = request.get_json(silent=True) or {}
+        token = data.get('token')
+
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+
+        username = payload['username']
+        docs = list(inbox_messages.find(
+            {'recipient': {'$regex': f'^{re.escape(username)}$', '$options': 'i'}},
+            sort=[('created_at', -1)]
+        ))
+
+        return jsonify({'messages': [_serialize_inbox_doc(doc) for doc in docs]}), 200
+
+    except (ServerSelectionTimeoutError, AutoReconnect) as e:
+        print(f"Get inbox DB error: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Database is temporarily unreachable'}), 503
+    except Exception as e:
+        print(f"Get inbox error: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Failed to fetch inbox messages'}), 500
+
+
 # ======================= ADMIN/UTILITY ROUTES =======================
 
 @app.route('/api/users', methods=['GET'])
@@ -631,7 +862,7 @@ if __name__ == '__main__':
     print("Task Scheduler Backend Server")
     print("=" * 60)
     print(f"Server running on: http://localhost:5000")
-    print(f"MongoDB URI: {app.config['MONGO_URI']}")
+    print(f"MongoDB URI: {redact_mongo_uri(app.config['MONGO_URI'])}")
     print("\nAvailable endpoints:")
     print("  POST /api/register      - Create new account")
     print("  POST /api/login         - Log in (loads TDS into memory)")

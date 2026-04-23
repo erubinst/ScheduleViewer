@@ -23,15 +23,7 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false);
 
   // for inbox:
-  const [inboxMsgs, setInboxMsgs] = useState([
-    {
-      id: 1,
-      sender: 'John Doe',
-      subject: 'Meeting with Jane',
-      message: 'hello.',
-      timestamp: '2026-01-01 10:00:00'
-    }
-  ]);
+  const [inboxMsgs, setInboxMsgs] = useState([]);
 
   // Check for existing token on load
   useEffect(() => {
@@ -58,6 +50,7 @@ function App() {
         loadCurrentSchedule(tokenToVerify);
         loadLocations(tokenToVerify);
         loadCapabilities(tokenToVerify);
+        loadInboxMessages(tokenToVerify);
       } else {
         handleLogout();
       }
@@ -156,6 +149,27 @@ function App() {
     }
   };
 
+  // Load inbox messages for current user
+  const loadInboxMessages = async (userToken) => {
+    try {
+      const response = await fetch(apiUrl('/api/inbox'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: userToken })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setInboxMsgs(data.messages || []);
+      } else {
+        console.error('Failed to load inbox:', data.error || 'unknown error');
+        setInboxMsgs([]);
+      }
+    } catch (error) {
+      console.error('Failed to load inbox:', error);
+      setInboxMsgs([]);
+    }
+  };
+
   // Handle login
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -179,6 +193,7 @@ function App() {
         loadCurrentSchedule(data.token);
         loadLocations(data.token);
         loadCapabilities(data.token);
+        loadInboxMessages(data.token);
       } else {
         setAuthError(data.error || 'Login failed');
       }
@@ -213,6 +228,7 @@ function App() {
         loadCurrentSchedule(data.token);
         loadLocations(data.token);
         loadCapabilities(data.token);
+        loadInboxMessages(data.token);
       } else {
         setAuthError(data.error || 'Registration failed');
       }
@@ -344,8 +360,9 @@ function App() {
         setAssignmentRejected(false);
         setShowSchedules(true);
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to add task');
+        const errorBody = await response.json().catch(() => ({}));
+        const errorMessage = errorBody.error || `Failed to add task (HTTP ${response.status})`;
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('Add task error:', error);
@@ -361,11 +378,36 @@ function App() {
     setSelectedCapabilities([]);
   };
 
-  const handleAssignmentDecision = (accepted) => {
+  const handleAssignmentDecision = async (accepted) => {
     if (accepted) {
-      console.log('[ASSIGNMENT] User accepted generated assignment');
-      setAssignmentAccepted(true);
-      setAssignmentRejected(false);
+      try {
+        const response = await fetch(apiUrl('/api/assignment-decision'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            accepted: true,
+            taskData: formData,
+            assignments: assignmentRows,
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(data.error || `Failed to save assignment decision (HTTP ${response.status})`);
+          return;
+        }
+
+        await loadInboxMessages(token);
+        setAssignmentAccepted(true);
+        setAssignmentRejected(false);
+        setShowSchedules(false);
+        setAssignmentRows([]);
+        setSelectedCapabilities([]);
+        setActiveTab('inbox');
+      } catch (error) {
+        console.error('Failed to save accepted assignment:', error);
+        alert('Could not save accepted assignment');
+      }
     } else {
       console.log('[ASSIGNMENT] User rejected generated assignment');
       setAssignmentAccepted(false);
@@ -375,6 +417,9 @@ function App() {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
+    if (tab === 'inbox' && token) {
+      loadInboxMessages(token);
+    }
     if (tab === 'add') {
       setShowSchedules(false);
       setAssignmentAccepted(false);
