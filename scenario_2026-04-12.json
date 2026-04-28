@@ -1,0 +1,803 @@
+{
+  "name": "scenario_week_2026-04-12",
+  "request_data": {
+    "parameters": {
+      "epoch_date": "2026-04-12T00:00"
+    },
+    "resourceTypes": [
+      {
+        "name": "Goose",
+        "type": "reusable",
+        "location": "SeniorApartments",
+        "capabilities": [
+          "goose_presence",
+          "goose_shopping",
+          "goose_laundry",
+          "denim_shopping",
+          "traveler",
+          "transport"
+        ],
+        "downtimes": [
+          {
+            "start_time": "2026-04-12T20:00",
+            "end_time": "2026-04-13T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-13T20:00",
+            "end_time": "2026-04-14T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-14T20:00",
+            "end_time": "2026-04-15T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-15T20:00",
+            "end_time": "2026-04-16T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-16T20:00",
+            "end_time": "2026-04-17T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-17T20:00",
+            "end_time": "2026-04-18T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          }
+        ]
+      },
+      {
+        "name": "GooseDaughter",
+        "type": "reusable",
+        "location": "GooseDaughterHouse",
+        "capabilities": [
+          "goosedaughter_presence",
+          "traveler"
+        ],
+        "downtimes": [
+          {
+            "start_time": "2026-04-12T20:00",
+            "end_time": "2026-04-13T08:00",
+            "duration": 540,
+            "location": "GooseDaughterHouse"
+          },
+          {
+            "start_time": "2026-04-13T20:00",
+            "end_time": "2026-04-14T08:00",
+            "duration": 540,
+            "location": "GooseDaughterHouse"
+          },
+          {
+            "start_time": "2026-04-14T20:00",
+            "end_time": "2026-04-15T08:00",
+            "duration": 540,
+            "location": "GooseDaughterHouse"
+          },
+          {
+            "start_time": "2026-04-15T20:00",
+            "end_time": "2026-04-16T08:00",
+            "duration": 540,
+            "location": "GooseDaughterHouse"
+          },
+          {
+            "start_time": "2026-04-16T20:00",
+            "end_time": "2026-04-17T08:00",
+            "duration": 540,
+            "location": "GooseDaughterHouse"
+          },
+          {
+            "start_time": "2026-04-17T20:00",
+            "end_time": "2026-04-18T08:00",
+            "duration": 540,
+            "location": "GooseDaughterHouse"
+          }
+        ]
+      },
+      {
+        "name": "Denim",
+        "type": "reusable",
+        "location": "SeniorApartments",
+        "capabilities": [
+          "denim_presence",
+          "denim_housework",
+          "denim_shopping",
+          "goose_shopping"
+        ],
+        "downtimes": [
+          {
+            "start_time": "2026-04-12T20:00",
+            "end_time": "2026-04-13T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-13T20:00",
+            "end_time": "2026-04-14T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-14T20:00",
+            "end_time": "2026-04-15T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-15T20:00",
+            "end_time": "2026-04-16T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-16T20:00",
+            "end_time": "2026-04-17T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          },
+          {
+            "start_time": "2026-04-17T20:00",
+            "end_time": "2026-04-18T08:00",
+            "duration": 540,
+            "location": "SeniorApartments"
+          }
+        ]
+      },
+      {
+        "name": "DenimBrother",
+        "type": "reusable",
+        "location": "DenimBrotherHouse",
+        "capabilities": [
+          "denimbrother_presence",
+          "traveler",
+          "transport",
+          "denimbrother_shopping",
+          "goose_shopping",
+          "denim_shopping"
+        ],
+        "downtimes": [
+          {
+            "start_time": "2026-04-12T20:00",
+            "end_time": "2026-04-13T08:00",
+            "duration": 540,
+            "location": "DenimBrotherHouse"
+          },
+          {
+            "start_time": "2026-04-13T20:00",
+            "end_time": "2026-04-14T08:00",
+            "duration": 540,
+            "location": "DenimBrotherHouse"
+          },
+          {
+            "start_time": "2026-04-14T20:00",
+            "end_time": "2026-04-15T08:00",
+            "duration": 540,
+            "location": "DenimBrotherHouse"
+          },
+          {
+            "start_time": "2026-04-15T20:00",
+            "end_time": "2026-04-16T08:00",
+            "duration": 540,
+            "location": "DenimBrotherHouse"
+          },
+          {
+            "start_time": "2026-04-16T20:00",
+            "end_time": "2026-04-17T08:00",
+            "duration": 540,
+            "location": "DenimBrotherHouse"
+          },
+          {
+            "start_time": "2026-04-17T20:00",
+            "end_time": "2026-04-18T08:00",
+            "duration": 540,
+            "location": "DenimBrotherHouse"
+          }
+        ]
+      },
+      {
+        "name": "DenimSon",
+        "type": "reusable",
+        "location": "DenimSonHouse",
+        "capabilities": [
+          "denimson_presence",
+          "traveler",
+          "transport"
+        ],
+        "downtimes": [
+          {
+            "start_time": "2026-04-12T20:00",
+            "end_time": "2026-04-13T08:00",
+            "duration": 540,
+            "location": "DenimSonHouse"
+          },
+          {
+            "start_time": "2026-04-13T20:00",
+            "end_time": "2026-04-14T08:00",
+            "duration": 540,
+            "location": "DenimSonHouse"
+          },
+          {
+            "start_time": "2026-04-14T20:00",
+            "end_time": "2026-04-15T08:00",
+            "duration": 540,
+            "location": "DenimSonHouse"
+          },
+          {
+            "start_time": "2026-04-15T20:00",
+            "end_time": "2026-04-16T08:00",
+            "duration": 540,
+            "location": "DenimSonHouse"
+          },
+          {
+            "start_time": "2026-04-16T20:00",
+            "end_time": "2026-04-17T08:00",
+            "duration": 540,
+            "location": "DenimSonHouse"
+          },
+          {
+            "start_time": "2026-04-17T20:00",
+            "end_time": "2026-04-18T08:00",
+            "duration": 540,
+            "location": "DenimSonHouse"
+          }
+        ]
+      }
+    ],
+    "templates": [
+      {
+        "name": "HouseChores",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "house_chores",
+            "type": "executable",
+            "requiredCapabilities": [
+              "denim_housework"
+            ],
+            "duration": 160,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "cleaning"
+          }
+        ]
+      },
+      {
+        "name": "GGroceryShopping",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "g_grocery_shopping",
+            "type": "executable",
+            "requiredCapabilities": [
+              "goose_shopping"
+            ],
+            "duration": 90,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "food_shopping"
+          }
+        ]
+      },
+      {
+        "name": "Laundry",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "laundry",
+            "type": "executable",
+            "requiredCapabilities": [
+              "goose_laundry"
+            ],
+            "duration": 120,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "cleaning"
+          }
+        ]
+      },
+      {
+        "name": "DGroceryShopping",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "d_grocery_shopping",
+            "type": "executable",
+            "requiredCapabilities": [
+              "denim_shopping"
+            ],
+            "duration": 90,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "food_shopping"
+          }
+        ]
+      },
+      {
+        "name": "DBGroceryShopping",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "d_b_grocery_shopping",
+            "type": "executable",
+            "requiredCapabilities": [
+              "denimbrother_shopping"
+            ],
+            "duration": 90,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "food_shopping"
+          }
+        ]
+      },
+      {
+        "name": "BrotherVisit",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "brother_visit",
+            "type": "executable",
+            "requiredCapabilities": [
+              "denim_presence",
+              "denimbrother_presence"
+            ],
+            "duration": 120,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "social"
+          }
+        ]
+      },
+      {
+        "name": "SonVisit",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "son_visit",
+            "type": "executable",
+            "requiredCapabilities": [
+              "denim_presence",
+              "denimson_presence"
+            ],
+            "duration": 200,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "social"
+          }
+        ]
+      },
+      {
+        "name": "GVintageVisit",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "g_vintage_visit",
+            "type": "executable",
+            "requiredCapabilities": [
+              "goose_presence"
+            ],
+            "duration": 300,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "social"
+          }
+        ]
+      },
+      {
+        "name": "BowlingLeague",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "bowling_league",
+            "type": "executable",
+            "requiredCapabilities": [
+              "goose_presence"
+            ],
+            "duration": 120,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "social"
+          }
+        ]
+      },
+      {
+        "name": "GChurch",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "g_church",
+            "type": "executable",
+            "requiredCapabilities": [
+              "goose_presence"
+            ],
+            "duration": 120,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "social"
+          }
+        ]
+      },
+      {
+        "name": "DaughterLunch",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "daughter_lunch",
+            "type": "executable",
+            "requiredCapabilities": [
+              "goose_presence",
+              "goosedaughter_presence"
+            ],
+            "duration": 90,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "social"
+          }
+        ]
+      },
+      {
+        "name": "BowlingSecretaryPaperwork",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "bowling_secretary_paperwork",
+            "type": "executable",
+            "requiredCapabilities": [
+              "goose_presence"
+            ],
+            "duration": 120,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "work"
+          }
+        ]
+      },
+      {
+        "name": "ResearchInterview",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "research_interview",
+            "type": "executable",
+            "requiredCapabilities": [
+              "goose_presence",
+              "denim_presence"
+            ],
+            "duration": 60,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "work"
+          }
+        ]
+      },
+      {
+        "name": "DVintageVisit",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "d_vintage_visit",
+            "type": "executable",
+            "requiredCapabilities": [
+              "denim_presence"
+            ],
+            "duration": 180,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "social"
+          }
+        ]
+      },
+      {
+        "name": "BirthdayParty",
+        "type": "meets",
+        "requiredCapabilities": [],
+        "subtasks": [
+          {
+            "taskName": "birthday_party",
+            "type": "executable",
+            "requiredCapabilities": [
+              "denim_presence",
+              "denimbrother_presence"
+            ],
+            "duration": 420,
+            "start-location": "@start-location",
+            "end-location": "@end-location",
+            "task_type": "social"
+          }
+        ]
+      }
+    ],
+    "orders": [
+      {
+        "name": "HouseChores",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-13T08:00",
+        "duedate": "2026-04-18T23:59",
+        "start-location": "SeniorApartments",
+        "end-location": "SeniorApartments",
+        "tasks": [
+          "HouseChores"
+        ]
+      },
+      {
+        "name": "GGroceryShopping",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-15T08:00",
+        "duedate": "2026-04-18T20:00",
+        "start-location": "GroceryStore",
+        "end-location": "GroceryStore",
+        "tasks": [
+          "GGroceryShopping"
+        ]
+      },
+      {
+        "name": "Laundry",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-15T08:00",
+        "duedate": "2026-04-18T20:00",
+        "start-location": "SeniorApartments",
+        "end-location": "SeniorApartments",
+        "tasks": [
+          "Laundry"
+        ]
+      },
+      {
+        "name": "DGroceryShopping",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-15T08:00",
+        "duedate": "2026-04-18T23:59",
+        "start-location": "GroceryStore",
+        "end-location": "GroceryStore",
+        "tasks": [
+          "DGroceryShopping"
+        ]
+      },
+      {
+        "name": "DBGroceryShopping",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-15T08:00",
+        "duedate": "2026-04-18T23:59",
+        "start-location": "GroceryStore",
+        "end-location": "GroceryStore",
+        "tasks": [
+          "DBGroceryShopping"
+        ]
+      },
+      {
+        "name": "BrotherVisit",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-13T08:00",
+        "duedate": "2026-04-18T23:59",
+        "start-location": "SeniorApartments",
+        "end-location": "SeniorApartments",
+        "tasks": [
+          "BrotherVisit"
+        ]
+      },
+      {
+        "name": "SonVisit",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-18T08:00",
+        "duedate": "2026-04-18T23:59",
+        "start-location": "SeniorApartments",
+        "end-location": "SeniorApartments",
+        "tasks": [
+          "SonVisit"
+        ]
+      },
+      {
+        "name": "GVintageVisit",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-16T08:00",
+        "duedate": "2026-04-16T17:00",
+        "start-location": "Vintage",
+        "end-location": "Vintage",
+        "tasks": [
+          "GVintageVisit"
+        ]
+      },
+      {
+        "name": "BowlingLeague",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-18T15:00",
+        "duedate": "2026-04-18T18:00",
+        "start-location": "BowlingAlley",
+        "end-location": "BowlingAlley",
+        "tasks": [
+          "BowlingLeague"
+        ]
+      },
+      {
+        "name": "GChurch",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-12T09:00",
+        "duedate": "2026-04-12T11:00",
+        "start-location": "Church",
+        "end-location": "Church",
+        "tasks": [
+          "GChurch"
+        ]
+      },
+      {
+        "name": "DaughterLunch",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-12T11:00",
+        "duedate": "2026-04-12T14:00",
+        "start-location": "Church",
+        "end-location": "Church",
+        "tasks": [
+          "DaughterLunch"
+        ]
+      },
+      {
+        "name": "BowlingSecretaryPaperwork",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-12T08:00",
+        "duedate": "2026-04-12T23:00",
+        "start-location": "SeniorApartments",
+        "end-location": "SeniorApartments",
+        "tasks": [
+          "BowlingSecretaryPaperwork"
+        ]
+      },
+      {
+        "name": "ResearchInterview",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-14T03:00",
+        "duedate": "2026-04-14T04:00",
+        "start-location": "Vintage",
+        "end-location": "Vintage",
+        "tasks": [
+          "ResearchInterview"
+        ]
+      },
+      {
+        "name": "DVintageVisit",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-13T08:00",
+        "duedate": "2026-04-13T14:00",
+        "start-location": "Vintage",
+        "end-location": "Vintage",
+        "tasks": [
+          "DVintageVisit"
+        ]
+      },
+      {
+        "name": "BirthdayParty",
+        "quantity": 1,
+        "earlieststartdate": "2026-04-16T00:00",
+        "duedate": "2026-04-16T23:59",
+        "start-location": "DenimBrotherHouse",
+        "end-location": "DenimBrotherHouse",
+        "tasks": [
+          "BirthdayParty"
+        ]
+      }
+    ],
+    "order-constraints": []
+  },
+  "travel_matrix": {
+    "SeniorApartments": {
+      "AppleBees": 7,
+      "Vintage": 19,
+      "GroceryStore": 12,
+      "DenimBrotherHouse": 17,
+      "GooseDaughterHouse": 60,
+      "DenimSonHouse": 60,
+      "SeniorApartments": 0,
+      "Church": 60,
+      "BowlingAlley": 60
+    },
+    "GooseDaughterHouse": {
+      "SeniorApartments": 60,
+      "DenimBrotherHouse": 60,
+      "DenimSonHouse": 60,
+      "GroceryStore": 60,
+      "Vintage": 60,
+      "BowlingAlley": 60,
+      "Church": 60,
+      "AppleBees": 60,
+      "GooseDaughterHouse": 0
+    },
+    "DenimBrotherHouse": {
+      "AppleBees": 17,
+      "Vintage": 30,
+      "SeniorApartments": 17,
+      "GroceryStore": 15,
+      "GooseDaughterHouse": 60,
+      "DenimSonHouse": 60,
+      "DenimBrotherHouse": 0,
+      "Church": 60,
+      "BowlingAlley": 60
+    },
+    "DenimSonHouse": {
+      "SeniorApartments": 60,
+      "DenimBrotherHouse": 60,
+      "DenimSonHouse": 0,
+      "GroceryStore": 60,
+      "Vintage": 60,
+      "BowlingAlley": 60,
+      "Church": 60,
+      "AppleBees": 60,
+      "GooseDaughterHouse": 60
+    },
+    "GroceryStore": {
+      "Vintage": 27,
+      "AppleBees": 12,
+      "DenimBrotherHouse": 15,
+      "SeniorApartments": 12,
+      "GooseDaughterHouse": 60,
+      "DenimSonHouse": 60,
+      "GroceryStore": 0,
+      "Church": 60,
+      "BowlingAlley": 60
+    },
+    "Vintage": {
+      "GroceryStore": 27,
+      "AppleBees": 18,
+      "DenimBrotherHouse": 30,
+      "SeniorApartments": 19,
+      "GooseDaughterHouse": 60,
+      "DenimSonHouse": 60,
+      "Vintage": 0,
+      "Church": 60,
+      "BowlingAlley": 60
+    },
+    "BowlingAlley": {
+      "SeniorApartments": 60,
+      "DenimBrotherHouse": 60,
+      "DenimSonHouse": 60,
+      "GroceryStore": 60,
+      "Vintage": 60,
+      "BowlingAlley": 0,
+      "Church": 60,
+      "AppleBees": 60,
+      "GooseDaughterHouse": 60
+    },
+    "Church": {
+      "SeniorApartments": 60,
+      "DenimBrotherHouse": 60,
+      "DenimSonHouse": 60,
+      "GroceryStore": 60,
+      "Vintage": 60,
+      "BowlingAlley": 60,
+      "Church": 0,
+      "AppleBees": 60,
+      "GooseDaughterHouse": 60
+    },
+    "AppleBees": {
+      "Vintage": 18,
+      "SeniorApartments": 7,
+      "GroceryStore": 12,
+      "DenimBrotherHouse": 17,
+      "GooseDaughterHouse": 60,
+      "DenimSonHouse": 60,
+      "AppleBees": 0,
+      "Church": 60,
+      "BowlingAlley": 60
+    }
+  },
+  "created_at": "2026-04-16 03:29:04.530945+00:00"
+}

@@ -14,7 +14,7 @@ from tds.executer import run_scheduler
 MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
 
 # Configuration
-SCENARIO_NAME = 'p3_w3_scenario'
+SCENARIO_NAME = 'scenario_week_2026-04-12'
 
 
 def get_scenario(scenario_name):

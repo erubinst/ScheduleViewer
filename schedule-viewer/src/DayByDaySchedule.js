@@ -70,10 +70,12 @@ function groupDayTasks(dayTasks) {
     }
   }
 
-  // Sort transit by start time
-  const sorted = [...transit].sort(
-    (a, b) => new Date(a.start_lb) - new Date(b.start_lb)
-  );
+  // Sort transit by display start time (fallback to start_lb)
+  const sorted = [...transit].sort((a, b) => {
+    const aStart = new Date(a.display_start || a.start_lb);
+    const bStart = new Date(b.display_start || b.start_lb);
+    return aStart - bStart;
+  });
 
   // Cluster into groups where consecutive tasks are within 5 min of each other
   const GAP_MS = 5 * 60 * 1000;
@@ -81,8 +83,8 @@ function groupDayTasks(dayTasks) {
   let current = null;
 
   for (const task of sorted) {
-    const taskStart = new Date(task.start_lb).getTime();
-    const taskEnd = new Date(task.end_lb).getTime();
+    const taskStart = new Date(task.display_start || task.start_lb).getTime();
+    const taskEnd = new Date(task.display_end || task.end_lb).getTime();
 
     if (!current) {
       current = { tasks: [task], startMs: taskStart, endMs: taskEnd };
@@ -109,16 +111,16 @@ function groupDayTasks(dayTasks) {
   for (const g of groups) {
     // Reconstruct synthetic start/end ISO strings from the cluster boundaries
     const startTask = g.tasks.reduce((a, b) =>
-      new Date(a.start_lb) < new Date(b.start_lb) ? a : b
+      new Date(a.display_start || a.start_lb) < new Date(b.display_start || b.start_lb) ? a : b
     );
     const endTask = g.tasks.reduce((a, b) =>
-      new Date(a.end_lb) > new Date(b.end_lb) ? a : b
+      new Date(a.display_end || a.end_lb) > new Date(b.display_end || b.end_lb) ? a : b
     );
     result.push({
       type: 'travel-group',
       tasks: g.tasks,
-      start_lb: startTask.start_lb,
-      end_lb: endTask.end_lb,
+      start_lb: startTask.display_start || startTask.start_lb,
+      end_lb: endTask.display_end || endTask.end_lb,
     });
   }
 
@@ -137,7 +139,9 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
   // Group tasks by date
   const tasksByDate = {};
   (tasks || []).filter(includeTaskForDisplay).forEach(task => {
-    const date = new Date(task.start_lb);
+    const startVal = task.display_start || task.start_lb;
+    if (!startVal) return;
+    const date = new Date(startVal);
     const dateStr = date.toISOString().split('T')[0];
     if (!tasksByDate[dateStr]) tasksByDate[dateStr] = [];
     tasksByDate[dateStr].push(task);
@@ -213,9 +217,12 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
   // ── Presence event modal data ──────────────────────────────────────────────
   let transportModal = null;
   if (detailTask != null) {
-    const modalDayKey = new Date(detailTask.start_lb).toISOString().split('T')[0];
+    const modalDayKey = new Date(detailTask.display_start || detailTask.start_lb).toISOString().split('T')[0];
     const allTasksForDay = (tasks || []).filter(
-      (t) => new Date(t.start_lb).toISOString().split('T')[0] === modalDayKey
+      (t) => {
+        const tv = t.display_start || t.start_lb;
+        return tv && new Date(tv).toISOString().split('T')[0] === modalDayKey;
+      }
     );
     transportModal = buildDetailPopupTransportInfo(detailTask, currentUser, allTasksForDay, formatTime);
   }
@@ -227,9 +234,12 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
     const anchorTask = travelGroup.tasks.find(
       (t) => (t.capability === 'travel') || normalizedTitle(t).startsWith('travel')
     ) ?? travelGroup.tasks[0];
-    const modalDayKey = new Date(anchorTask.start_lb).toISOString().split('T')[0];
+    const modalDayKey = new Date(anchorTask.display_start || anchorTask.start_lb).toISOString().split('T')[0];
     const allTasksForDay = (tasks || []).filter(
-      (t) => new Date(t.start_lb).toISOString().split('T')[0] === modalDayKey
+      (t) => {
+        const tv = t.display_start || t.start_lb;
+        return tv && new Date(tv).toISOString().split('T')[0] === modalDayKey;
+      }
     );
     // Scope to this gray bar’s segments only so DRIVING / pickup / dropoff times aren’t mixed with other trips
     travelModal = buildDetailPopupTransportInfo(
@@ -272,7 +282,8 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
               </h1>
               <p><strong>LOCATION:</strong> {detailTask.location ?? '—'}</p>
               <p><strong>START:</strong> {formatTime(detailTask.start_lb)}</p>
-              <p><strong>END:</strong> {formatTime(detailTask.end_lb)}</p>
+              <p><strong>START:</strong> {formatTime(detailTask.display_start || detailTask.start_lb)}</p>
+              <p><strong>END:</strong> {formatTime(detailTask.display_end || detailTask.end_lb)}</p>
 
               {transportModal && (
                 <p style={{ marginTop: 12, fontSize: 14, opacity: 0.9 }}>
@@ -360,7 +371,7 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
               <ul className="daybyday-modal-transport-list">
                 {travelGroup.tasks.map((t, i) => (
                   <li key={i}>
-                    {formatTime(t.start_lb)} – {formatTime(t.end_lb)}{' '}
+                    {formatTime(t.display_start || t.start_lb)} – {formatTime(t.display_end || t.end_lb)}{' '}
                     <span style={{ opacity: 0.6, fontSize: 12 }}>
                       {taskDisplayName(t)}
                     </span>
@@ -475,17 +486,20 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
                 {renderItems.map((item, idx) => {
                   if (item.type === 'presence') {
                     const { task } = item;
-                    const top = getTimePosition(task.start_lb);
-                    const height = getHeightFromTimes(task.start_lb, task.end_lb);
+                    const startVal = task.display_start || task.start_lb;
+                    const endVal = task.display_end || task.end_lb;
+                    if (!startVal || !endVal) return null;
+                    const top = getTimePosition(startVal);
+                    const height = getHeightFromTimes(startVal, endVal);
                     if (top < 0 || top > maxVisibleTop) return null;
 
                     return (
                       <div
-                        key={`presence-${idx}-${task.start_lb}`}
+                        key={`presence-${idx}-${startVal}`}
                         className="calendar-task"
                         style={{ top: `${top}px`, height: `${height}px`, backgroundColor: CALENDAR_BLUE }}
                       >
-                        <div className="task-time-small">{formatTime(task.start_lb)}</div>
+                        <div className="task-time-small">{formatTime(startVal)}</div>
                         <div className="task-name-small">{taskDisplayName(task) || '—'}</div>
                         {task.location && (
                           <div className="task-location-small">📍 {task.location}</div>

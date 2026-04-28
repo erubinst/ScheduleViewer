@@ -331,7 +331,7 @@ def get_user_scenario_name(username):
         {'resource_name': {'$regex': f'^{username}$', '$options': 'i'}},
         sort=[('created_at', -1)]
     )
-    return rschedule.get('scenario_name') if rschedule else None
+    return "scenario_week_2026-04-12" #rschedule.get('scenario_name') if rschedule else None
 
 
 @app.route('/api/locations', methods=['POST'])
