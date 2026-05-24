@@ -164,19 +164,22 @@ body {
   border-right: 2px solid #e5e7eb;
 }
 
+/* Must match .day-header height so hour rows line up with .day-timeline */
 .time-header {
-  height: 80px;
+  height: 90px;
   border-bottom: 2px solid #e5e7eb;
 }
 
 .time-label {
-  padding: 4px 8px;
+  box-sizing: border-box;
+  padding: 0 8px;
   font-size: 12px;
   color: #7f8c8d;
   text-align: right;
   border-bottom: 1px solid #e5e7eb;
-  position: relative;
-  top: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .day-column {
@@ -326,7 +329,7 @@ body {
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.95);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 600;
   text-align: left;
   text-decoration: underline;
