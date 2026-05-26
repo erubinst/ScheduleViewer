@@ -1,10 +1,8 @@
 import React, { useState }  from 'react';
 
 function Inbox( {inboxMsgs} ) {
-    // first msg, or nothing selected
-    // const [selectedId, setSelectedId] = useState(inboxMsgs[0]?.id || null);
     const [selectedId, setSelectedId] = useState(null);
-    const selectedMsg = inboxMsgs.find(msg => msg.id === selectedId);
+    const selectedMsg = inboxMsgs.find(msg => (msg.id || msg._id) === selectedId);
 
     return (
         <div className="inbox-layout">
@@ -13,16 +11,19 @@ function Inbox( {inboxMsgs} ) {
                 {inboxMsgs.length === 0 ? (
                     <p>No messages in inbox.</p>
                 ) : (
-                    inboxMsgs.map(msg => (
-                        <button
-                            key={msg.id}
-                            className={`inbox-list-item ${msg.id === selectedId ? 'active' : ''}`}
-                            onClick={() => setSelectedId(msg.id)}
-                        >
-                            <div className="inbox-list-item-title">{msg.subject}</div>
-                            <div className="inbox-list-item-summary">{msg.message}</div>
-                    </button>
-                    ))
+                    inboxMsgs.map(msg => {
+                        const messageId = msg.id || msg._id;
+                        return (
+                            <button
+                                key={messageId}
+                                className={`inbox-list-item ${messageId === selectedId ? 'active' : ''}`}
+                                onClick={() => setSelectedId(messageId)}
+                            >
+                                <div className="inbox-list-item-title">{msg.subject}</div>
+                                <div className="inbox-list-item-summary">{msg.message}</div>
+                            </button>
+                        );
+                    })
                 )}
             </div>
 

@@ -3,9 +3,10 @@ Standalone script to upload scenario data directly to MongoDB
 Run this once to populate the database with your scenario
 """
 
-from pymongo import MongoClient
 import json
 from datetime import datetime
+
+from mongo_client import create_mongo_client
 
 # MongoDB connection (same as your backend)
 MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
@@ -26,7 +27,7 @@ def upload_scenario():
     # Connect to MongoDB
     print("\n📡 Connecting to MongoDB Atlas...")
     try:
-        client = MongoClient(MONGO_URI)
+        client = create_mongo_client(MONGO_URI)
         db = client.task_scheduler
         scenarios = db.scenarios
         

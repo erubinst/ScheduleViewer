@@ -5,11 +5,16 @@
 # 2. Use an arbitrary example for add task, eventually will be replaced by the frontend input.
 # 3. Call the tds function to add a task to the schedule.
 
-from pymongo import MongoClient
 from tds.executer import add_task
 import pandas as pd
+import os
 
-MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
+from mongo_client import create_mongo_client
+
+MONGO_URI = os.getenv(
+    'MONGO_URI',
+    'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
+)
 
 def retrieve_current_schedule(scenario_name):
     """Retrieve the current task schedule for a given scenario from MongoDB
@@ -19,7 +24,7 @@ def retrieve_current_schedule(scenario_name):
     resource, task_name, start_lb, start_ub, end_lb, end_ub, capability, location, etc.
     """
     try:
-        client = MongoClient(MONGO_URI)
+        client = create_mongo_client(MONGO_URI)
         db = client.task_scheduler
         resource_schedulers = db.resource_schedules
         
@@ -64,7 +69,7 @@ def get_scenario(scenario_name):
     Returns the scenario document or None if not found
     """
     try:
-        client = MongoClient(MONGO_URI)
+        client = create_mongo_client(MONGO_URI)
         db = client.task_scheduler
         scenarios = db.scenarios
         
@@ -90,16 +95,16 @@ def retrieve_scenario(scenario_name):
     )
 
 
-current_schedule = retrieve_current_schedule('p3_w3_scenario')
-scenario_data = retrieve_scenario('p3_w3_scenario')
-# Example new task to add (replace with frontend input eventually) assume task is df in format  ['task_name', 'required_capabilities', 'est', 'lft', 'duration']
-new_task = pd.DataFrame([{
-    'task_name': 'new_task_1',
-    'required_capabilities': ['goosedaughter_presence'], # any string, eventually a dropdown
-    'est': 346080, # send in datetime format
-    'lft': 350000,
-    'duration': 2,
-    'locations': ['Vintage', 'Vintage'], # expect just one location, but pass it twice, can find list in scenarios travel_matrix (scenario_data[1])
-}])
-# Call the add_task function from tds.executer
-updated_schedule = add_task(new_task, scenario_data, current_schedule)
+# current_schedule = retrieve_current_schedule('p3_w3_scenario')
+# scenario_data = retrieve_scenario('p3_w3_scenario')
+# # Example new task to add (replace with frontend input eventually) assume task is df in format  ['task_name', 'required_capabilities', 'est', 'lft', 'duration']
+# new_task = pd.DataFrame([{
+#     'task_name': 'new_task_1',
+#     'required_capabilities': ['goosedaughter_presence'], # any string, eventually a dropdown
+#     'est': 346080, # send in datetime format
+#     'lft': 350000,
+#     'duration': 2,
+#     'locations': ['Vintage', 'Vintage'], # expect just one location, but pass it twice, can find list in scenarios travel_matrix (scenario_data[1])
+# }])
+# # Call the add_task function from tds.executer
+# updated_schedule = add_task(new_task, scenario_data, current_schedule)

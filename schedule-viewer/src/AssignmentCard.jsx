@@ -7,11 +7,27 @@ import './AssignmentCard.css';
 function fmtTime(isoString) {
   if (!isoString) return null;
   try {
-    return new Date(isoString).toLocaleString([], {
-      month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const datePart = date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     });
+    const timePart = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).replace(':00 ', ' ').replace(':00', '');
+
+    return `${timePart} on ${datePart}`;
   } catch { return null; }
+}
+
+function formatPlace(value) {
+  if (!value) return null;
+  return String(value).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').trim();
 }
 
 function parseAssignments(rows) {
@@ -130,7 +146,7 @@ const Muted = ({ children }) => <span className="assignment-muted">{children}</s
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export default function AssignmentCard({ assignmentRows, onDecision }) {
+export default function AssignmentCard({ assignmentRows, taskData, onDecision }) {
   if (!assignmentRows || assignmentRows.length === 0) {
     return (
       <div className="assignment-empty-state">
@@ -143,13 +159,15 @@ export default function AssignmentCard({ assignmentRows, onDecision }) {
   if (!result) return null;
 
   const { capAssignments, transportAssignments, totalRideTime, totalTravel } = result;
+  const taskLocation = formatPlace(taskData?.location);
+  const taskStart = fmtTime(taskData?.earliestStartTime);
 
   return (
     <div className="assignment-card-root">
 
       {/* ── Who handles what ─────────────────────────────────────────── */}
       <div className="assignment-section">
-        <div className="assignment-section-label">Assignments</div>
+        <div className="assignment-section-label">Assignment Summary</div>
         {capAssignments.length === 0
           ? <Muted>No capability assignments.</Muted>
           : capAssignments.map((a, i) => (
@@ -157,17 +175,16 @@ export default function AssignmentCard({ assignmentRows, onDecision }) {
               key={i}
               className={`assignment-item ${i < capAssignments.length - 1 ? 'assignment-item-spaced' : ''}`}
             >
-              <div className="assignment-row">
-                <Pill variant="resource" resourceName={a.resource}>{a.resource}</Pill>
-                <span>handles</span>
-                <Pill variant="cap">{a.capability}</Pill>
-                <Muted>· scheduled after</Muted>
-                <TaskCode>{a.followsTask}</TaskCode>
+              <div className="assignment-summary-line">
+                <strong>{a.resource}</strong> handles <strong>{a.capability}</strong>.
               </div>
               {(a.endLb || a.location) && (
                 <div className="assignment-subline">
-                  {a.endLb && <span>Prior task ends around {fmtTime(a.endLb)}</span>}
-                  {a.location && <span>Location: {a.location}</span>}
+                  {a.location && taskLocation && taskStart && (
+                    <span>Travel from {formatPlace(a.location)} to {taskLocation} after {taskStart}.</span>
+                  )}
+                  {(!taskLocation || !taskStart) && a.endLb && <span>Scheduled after {fmtTime(a.endLb)}.</span>}
+                  {(!taskLocation || !taskStart) && a.location && <span>Location: {a.location}.</span>}
                 </div>
               )}
             </div>
@@ -184,22 +201,16 @@ export default function AssignmentCard({ assignmentRows, onDecision }) {
               key={i}
               className={`assignment-item ${i < transportAssignments.length - 1 ? 'assignment-item-spaced' : ''}`}
             >
-              <div className="assignment-row">
-                <Pill variant="resource" resourceName={t.driver}>{t.driver}</Pill>
-                <span>picks up</span>
-                {t.passenger && <Pill variant="resource" resourceName={t.passenger}>{t.passenger}</Pill>}
-                {t.pickupAt && <><Muted>after</Muted><TaskCode>{t.pickupAt}</TaskCode></>}
-                {t.dropsOffAt && (
-                  <>
-                    <Muted>→ drops off at</Muted>
-                    <strong>{t.dropsOffAt}</strong>
-                  </>
+              <div className="assignment-summary-line">
+                <strong>{t.driver}</strong> will pick up <strong>{t.passenger}</strong>
+                {taskLocation && taskStart && t.location && (
+                  <span> at {formatPlace(t.location)} after {taskStart} and take them to {taskLocation}.</span>
                 )}
               </div>
               {(t.endLb || t.location) && (
                 <div className="assignment-subline">
-                  {t.endLb && <span>Pickup after task ending around {fmtTime(t.endLb)}</span>}
-                  {t.location && <span>Location: {t.location}</span>}
+                  {(!taskLocation || !taskStart) && t.endLb && <span>Pickup after task ending around {fmtTime(t.endLb)}.</span>}
+                  {(!taskLocation || !taskStart) && t.location && <span>Location: {t.location}.</span>}
                 </div>
               )}
             </div>
