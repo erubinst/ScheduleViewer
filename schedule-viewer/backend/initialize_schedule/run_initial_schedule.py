@@ -3,12 +3,12 @@ Script to run the scheduler and store results in MongoDB
 This creates the initial schedule for a scenario and stores it per resource
 """
 
-from pymongo import MongoClient
 from datetime import datetime
 import json
 
 # Import your scheduler
 from tds.executer import run_scheduler
+from mongo_client import create_mongo_client
 
 # MongoDB connection (same as your backend)
 MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
@@ -24,7 +24,7 @@ def get_scenario(scenario_name):
     Returns the scenario document or None if not found
     """
     try:
-        client = MongoClient(MONGO_URI)
+        client = create_mongo_client(MONGO_URI)
         db = client.task_scheduler
         scenarios = db.scenarios
         
@@ -51,7 +51,7 @@ def run_and_store_schedule():
     # Connect to MongoDB
     print("\n📡 Connecting to MongoDB Atlas...")
     try:
-        client = MongoClient(MONGO_URI)
+        client = create_mongo_client(MONGO_URI)
         db = client.task_scheduler
         resource_schedules = db.resource_schedules
         

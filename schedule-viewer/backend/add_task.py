@@ -5,11 +5,16 @@
 # 2. Use an arbitrary example for add task, eventually will be replaced by the frontend input.
 # 3. Call the tds function to add a task to the schedule.
 
-from pymongo import MongoClient
 from tds.executer import add_task
 import pandas as pd
+import os
 
-MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
+from mongo_client import create_mongo_client
+
+MONGO_URI = os.getenv(
+    'MONGO_URI',
+    'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
+)
 
 def retrieve_current_schedule(scenario_name):
     """Retrieve the current task schedule for a given scenario from MongoDB
@@ -19,7 +24,7 @@ def retrieve_current_schedule(scenario_name):
     resource, task_name, start_lb, start_ub, end_lb, end_ub, capability, location, etc.
     """
     try:
-        client = MongoClient(MONGO_URI)
+        client = create_mongo_client(MONGO_URI)
         db = client.task_scheduler
         resource_schedulers = db.resource_schedules
         
@@ -64,7 +69,7 @@ def get_scenario(scenario_name):
     Returns the scenario document or None if not found
     """
     try:
-        client = MongoClient(MONGO_URI)
+        client = create_mongo_client(MONGO_URI)
         db = client.task_scheduler
         scenarios = db.scenarios
         

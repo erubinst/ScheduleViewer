@@ -5,7 +5,9 @@ import DayByDaySchedule from './DayByDaySchedule';
 import AssignmentCard from './AssignmentCard';
 import Inbox from './Inbox';
 
-const API_URL = 'http://127.0.0.1:5000';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || '').replace(/\/$/, '');
+
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
 function App() {
   // Auth state
@@ -21,15 +23,7 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false);
 
   // for inbox:
-  const [inboxMsgs, setInboxMsgs] = useState([
-    {
-      id: 1,
-      sender: 'John Doe',
-      subject: 'Meeting with Jane',
-      message: 'hello.',
-      timestamp: '2026-01-01 10:00:00'
-    }
-  ]);
+  const [inboxMsgs, setInboxMsgs] = useState([]);
 
   // Check for existing token on load
   useEffect(() => {
@@ -43,7 +37,7 @@ function App() {
   // Verify token with backend
   const verifyToken = async (tokenToVerify, usernameToVerify) => {
     try {
-      const response = await fetch(`${API_URL}/api/verify-token`, {
+      const response = await fetch(apiUrl('/api/verify-token'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: tokenToVerify })
@@ -56,6 +50,7 @@ function App() {
         loadCurrentSchedule(tokenToVerify);
         loadLocations(tokenToVerify);
         loadCapabilities(tokenToVerify);
+        loadInboxMessages(tokenToVerify);
       } else {
         handleLogout();
       }
@@ -68,7 +63,7 @@ function App() {
   // Load user's current schedule
   const loadCurrentSchedule = async (userToken) => {
     try {
-      const response = await fetch(`${API_URL}/api/current-schedule`, {
+      const response = await fetch(apiUrl('/api/current-schedule'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
@@ -85,7 +80,7 @@ function App() {
   // Load capabilities
   const loadCapabilities = async (userToken) => {
     try {
-      const response = await fetch(`${API_URL}/api/capabilities`, {
+      const response = await fetch(apiUrl('/api/capabilities'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
@@ -106,7 +101,7 @@ function App() {
   // Load location options
   const loadLocations = async (userToken) => {
     try {
-      const response = await fetch(`${API_URL}/api/locations`, {
+      const response = await fetch(apiUrl('/api/locations'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
@@ -129,7 +124,7 @@ function App() {
     setGanttLoading(true);
     setGanttError(null);
     try {
-      const response = await fetch(`${API_URL}/api/all-resource-schedules`, {
+      const response = await fetch(apiUrl('/api/all-resource-schedules'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
@@ -154,13 +149,34 @@ function App() {
     }
   };
 
+  // Load inbox messages for current user
+  const loadInboxMessages = async (userToken) => {
+    try {
+      const response = await fetch(apiUrl('/api/inbox'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: userToken })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setInboxMsgs(data.messages || []);
+      } else {
+        console.error('Failed to load inbox:', data.error || 'unknown error');
+        setInboxMsgs([]);
+      }
+    } catch (error) {
+      console.error('Failed to load inbox:', error);
+      setInboxMsgs([]);
+    }
+  };
+
   // Handle login
   const handleLogin = async (e) => {
     e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/login`, {
+      const response = await fetch(apiUrl('/api/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: authUsername, password: authPassword })
@@ -177,6 +193,7 @@ function App() {
         loadCurrentSchedule(data.token);
         loadLocations(data.token);
         loadCapabilities(data.token);
+        loadInboxMessages(data.token);
       } else {
         setAuthError(data.error || 'Login failed');
       }
@@ -194,7 +211,7 @@ function App() {
     setAuthError('');
     setAuthLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/register`, {
+      const response = await fetch(apiUrl('/api/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: authUsername, password: authPassword })
@@ -211,6 +228,7 @@ function App() {
         loadCurrentSchedule(data.token);
         loadLocations(data.token);
         loadCapabilities(data.token);
+        loadInboxMessages(data.token);
       } else {
         setAuthError(data.error || 'Registration failed');
       }
@@ -256,6 +274,8 @@ function App() {
   // Assignment result state
   const [showSchedules, setShowSchedules] = useState(false);
   const [assignmentRows, setAssignmentRows] = useState([]);
+  const [assignmentAccepted, setAssignmentAccepted] = useState(false);
+  const [assignmentRejected, setAssignmentRejected] = useState(false);
 
   // Current schedule (View tab)
   const [currentSchedule, setCurrentSchedule] = useState({
@@ -308,12 +328,21 @@ function App() {
     setFormData({ ...formData, [name]: value });
   };
 
+  const handleCapabilityToggle = (capability) => {
+    setSelectedCapabilities((currentCapabilities) => {
+      if (currentCapabilities.includes(capability)) {
+        return currentCapabilities.filter((item) => item !== capability);
+      }
+      return [...currentCapabilities, capability];
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Form submitted by:', username);
     console.log('Form data:', formData);
     try {
-      const response = await fetch(`${API_URL}/api/schedule`, {
+      const response = await fetch(apiUrl('/api/schedule'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -327,10 +356,13 @@ function App() {
         console.log('[FORM] API response:', data);
         console.log('[FORM] assignments:', data.assignments);
         setAssignmentRows(data.assignments || []);
+        setAssignmentAccepted(false);
+        setAssignmentRejected(false);
         setShowSchedules(true);
       } else {
-        const error = await response.json();
-        alert(error.error || 'Failed to add task');
+        const errorBody = await response.json().catch(() => ({}));
+        const errorMessage = errorBody.error || `Failed to add task (HTTP ${response.status})`;
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('Add task error:', error);
@@ -340,22 +372,58 @@ function App() {
 
   const handleBack = () => {
     setShowSchedules(false);
+    setAssignmentAccepted(false);
+    setAssignmentRejected(false);
     setAssignmentRows([]);
     setSelectedCapabilities([]);
   };
 
-  const handleAssignmentDecision = (accepted) => {
+  const handleAssignmentDecision = async (accepted) => {
     if (accepted) {
-      console.log('[ASSIGNMENT] User accepted generated assignment');
+      try {
+        const response = await fetch(apiUrl('/api/assignment-decision'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            accepted: true,
+            taskData: formData,
+            assignments: assignmentRows,
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(data.error || `Failed to save assignment decision (HTTP ${response.status})`);
+          return;
+        }
+
+        await loadInboxMessages(token);
+        setAssignmentAccepted(true);
+        setAssignmentRejected(false);
+        setShowSchedules(false);
+        setAssignmentRows([]);
+        setSelectedCapabilities([]);
+        setActiveTab('inbox');
+      } catch (error) {
+        console.error('Failed to save accepted assignment:', error);
+        alert('Could not save accepted assignment');
+      }
     } else {
       console.log('[ASSIGNMENT] User rejected generated assignment');
+      setAssignmentAccepted(false);
+      setAssignmentRejected(true);
     }
   };
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
+    if (tab === 'inbox' && token) {
+      loadInboxMessages(token);
+    }
     if (tab === 'add') {
       setShowSchedules(false);
+      setAssignmentAccepted(false);
+      setAssignmentRejected(false);
       setAssignmentRows([]);
       setSelectedCapabilities([]);
     }
@@ -511,26 +579,44 @@ function App() {
               </div>
               <div className="form-group">
                 <label htmlFor="capabilities">Required Capabilities</label>
-                <select
-                  id="capabilities"
-                  multiple
-                  size={Math.min(availableCapabilities.length, 6)}
-                  value={selectedCapabilities}
-                  onChange={(e) => setSelectedCapabilities(Array.from(e.target.selectedOptions, o => o.value))}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '4px', fontFamily: 'inherit' }}
-                >
+                <div className="capabilities-checkbox-group">
                   {availableCapabilities.length === 0 ? (
-                    <option value="" disabled>No capabilities available</option>
+                    <div className="capabilities-empty">No capabilities available</div>
                   ) : (
-                    availableCapabilities.map((cap) => (
-                      <option key={cap} value={cap}>{cap}</option>
-                    ))
+                    <div className="capabilities-checkbox-grid">
+                      {availableCapabilities.map((capability, index) => (
+                        <label key={capability} className="capability-checkbox-item" htmlFor={`capability-${index}`}>
+                          <input
+                            id={`capability-${index}`}
+                            type="checkbox"
+                            checked={selectedCapabilities.includes(capability)}
+                            onChange={() => handleCapabilityToggle(capability)}
+                          />
+                          <span>{capability}</span>
+                        </label>
+                      ))}
+                    </div>
                   )}
-                </select>
-                <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>Hold Ctrl/Cmd to select multiple</small>
+                </div>
               </div>
               <button type="submit" className="submit-button">Add Task</button>
             </form>
+          </div>
+        ) : assignmentAccepted ? (
+          <div className="schedules-container">
+            <div className="assignment-status-card">
+              <h1 className="assignment-status-title">Task added</h1>
+              <p className="assignment-status-subtitle">Your assignment was accepted successfully.</p>
+              <button className="submit-button assignment-status-btn" onClick={handleBack}>Go back to Add Task</button>
+            </div>
+          </div>
+        ) : assignmentRejected ? (
+          <div className="schedules-container">
+            <div className="assignment-status-card">
+              <h1 className="assignment-status-title">Assignment rejected</h1>
+              <p className="assignment-status-subtitle">You can review your task details and submit again.</p>
+              <button className="submit-button assignment-status-btn" onClick={handleBack}>Go back to Add Task</button>
+            </div>
           </div>
         ) : (
           // ── ASSIGNMENTS OUTPUT VIEW ── replaced raw JSON with AssignmentCard
@@ -543,6 +629,7 @@ function App() {
             <div className="current-schedule-card">
               <AssignmentCard
                 assignmentRows={assignmentRows}
+                taskData={formData}
                 onDecision={handleAssignmentDecision}
               />
             </div>

@@ -3,10 +3,11 @@ Standalone script to create user accounts for all resources in a scenario
 All accounts will have password: "tester"
 """
 
-from pymongo import MongoClient
 from flask_bcrypt import Bcrypt
 from datetime import datetime
 from flask import Flask
+
+from mongo_client import create_mongo_client
 
 # MongoDB connection (same as your backend)
 MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
@@ -26,7 +27,7 @@ def create_resource_accounts():
     # Connect to MongoDB
     print("\n📡 Connecting to MongoDB Atlas...")
     try:
-        client = MongoClient(MONGO_URI)
+        client = create_mongo_client(MONGO_URI)
         db = client.task_scheduler
         scenarios = db.scenarios
         users = db.users
