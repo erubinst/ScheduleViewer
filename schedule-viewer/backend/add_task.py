@@ -90,16 +90,16 @@ def retrieve_scenario(scenario_name):
     )
 
 
-current_schedule = retrieve_current_schedule('p3_w3_scenario')
-scenario_data = retrieve_scenario('p3_w3_scenario')
-# Example new task to add (replace with frontend input eventually) assume task is df in format  ['task_name', 'required_capabilities', 'est', 'lft', 'duration']
-new_task = pd.DataFrame([{
-    'task_name': 'new_task_1',
-    'required_capabilities': ['goosedaughter_presence'], # any string, eventually a dropdown
-    'est': 346080, # send in datetime format
-    'lft': 350000,
-    'duration': 2,
-    'locations': ['Vintage', 'Vintage'], # expect just one location, but pass it twice, can find list in scenarios travel_matrix (scenario_data[1])
-}])
-# Call the add_task function from tds.executer
-updated_schedule = add_task(new_task, scenario_data, current_schedule)
+# current_schedule = retrieve_current_schedule('p3_w3_scenario')
+# scenario_data = retrieve_scenario('p3_w3_scenario')
+# # Example new task to add (replace with frontend input eventually) assume task is df in format  ['task_name', 'required_capabilities', 'est', 'lft', 'duration']
+# new_task = pd.DataFrame([{
+#     'task_name': 'new_task_1',
+#     'required_capabilities': ['goosedaughter_presence'], # any string, eventually a dropdown
+#     'est': 346080, # send in datetime format
+#     'lft': 350000,
+#     'duration': 2,
+#     'locations': ['Vintage', 'Vintage'], # expect just one location, but pass it twice, can find list in scenarios travel_matrix (scenario_data[1])
+# }])
+# # Call the add_task function from tds.executer
+# updated_schedule = add_task(new_task, scenario_data, current_schedule)
