@@ -17,7 +17,7 @@ import pandas as pd
 
 from add_task import retrieve_current_schedule, retrieve_scenario
 from mongo_client import create_mongo_client
-from tds.executer import reload_tds, add_task
+from tds.executer import reload_tds, add_task, export_schedule, apply_assignment
 from pymongo.errors import ServerSelectionTimeoutError, AutoReconnect
 
 app = Flask(__name__)
@@ -350,7 +350,7 @@ def get_user_scenario_name(username):
         {'resource_name': {'$regex': f'^{username}$', '$options': 'i'}},
         sort=[('created_at', -1)]
     )
-    return "scenario_week_2026-04-12" #rschedule.get('scenario_name') if rschedule else None
+    return rschedule.get('scenario_name') if rschedule else None
 
 
 def task_exists_in_scenario(scenario_name, task_name):
@@ -465,6 +465,141 @@ def _serialize_inbox_doc(doc):
         'created_at': _serialize_value(doc.get('created_at')),
         'read': bool(doc.get('read', False)),
     }
+
+
+def _save_accepted_task_to_schedule(username, scenario_name, task_data, epoch_date, assignments, selected_capabilities=None):
+    """
+    Completely rewrite the resource schedules for a scenario by regenerating from the modified TDS.
+    
+    This follows the same pattern as run_initial_schedule.py:
+    - Gets the modified TDS from user_tds_store
+    - Retrieves scenario data (request_data, travel_matrix)
+    - Calls run_scheduler to generate the complete modified schedule
+    - Clears existing resource_schedules for this scenario
+    - Saves all tasks grouped by resource
+    
+    Args:
+        username: Username whose TDS has been modified
+        scenario_name: Name of the scenario
+        task_data: Original task input data (for logging)
+        epoch_date: ISO datetime string for epoch reference
+    
+    Returns:
+        Dict with status and count of resources updated
+    """
+    try:
+        if not username or not scenario_name:
+            print("[SAVE_TASK] Missing username or scenario_name")
+            return {'success': False, 'message': 'Missing required data', 'updated_count': 0}
+        
+        task_name = (task_data or {}).get('taskName') or 'Unnamed Task'
+        
+        # Get the TDS from user store (it's been modified by add_task)
+        tds = user_tds_store.get(username)
+        if tds is None:
+            print(f"[SAVE_TASK] No TDS found for user '{username}'")
+            return {'success': False, 'message': 'TDS not initialized', 'updated_count': 0}
+        
+        # Extract schedule DataFrame directly from the modified TDS
+        print(f"[SAVE_TASK] Extracting schedule from modified TDS via export_schedule...")
+        try:
+            df = export_schedule(tds, epoch_date)
+            # print the df rows with the task_name matching the new task
+            print(f"[SAVE_TASK] Schedule entries for task '{task_name}':")
+            for _, row in df[df['task_name'] == task_name].iterrows():
+                print(f"  - {row.to_dict()}")
+            print(f"[SAVE_TASK] ✓ Schedule extracted from TDS: {len(df)} entries")
+        except Exception as e:
+            print(f"[SAVE_TASK] Failed to extract schedule from TDS exporter: {type(e).__name__}: {e}")
+            traceback.print_exc()
+            return {'success': False, 'message': f'TDS export failed: {str(e)}', 'updated_count': 0}
+        
+        # Clear existing schedules for this scenario (overwrite)
+        print(f"[SAVE_TASK] Clearing old schedules for scenario '{scenario_name}'...")
+        cleared = resource_schedules.delete_many({'scenario_name': scenario_name})
+        print(f"[SAVE_TASK] Deleted {cleared.deleted_count} old resource schedule documents")
+
+        resources = df['resource'].unique()
+        stored_count = 0
+            
+        for resource_name in resources:
+            try:
+                resource_df = df[df['resource'] == resource_name]
+                tasks = resource_df.to_dict('records')
+                
+                schedule_doc = {
+                    'scenario_name': scenario_name,
+                    'resource_name': resource_name,
+                    'tasks': tasks,
+                    'created_at': datetime.utcnow()
+                }
+                
+                resource_schedules.insert_one(schedule_doc)
+                print(f"[SAVE_TASK] ✓ Stored schedule for '{resource_name}' ({len(tasks)} entries)")
+                stored_count += 1
+            except Exception as e:
+                print(f"[SAVE_TASK] ❌ Failed to store '{resource_name}': {type(e).__name__}: {e}")
+        
+        if stored_count > 0:
+            print(f"[SAVE_TASK] ✓ Successfully saved new task '{task_name}' and regenerated all schedules")
+            # Also add the task to the scenario's request_data (templates + orders)
+            try:
+                scenario_doc = scenarios.find_one({'name': scenario_name})
+                if scenario_doc:
+                    display_name = task_data.get('taskName') or task_name
+
+                    # Use explicit capabilities supplied by the UI (may be empty list).
+                    required_caps = [str(c).strip() for c in (selected_capabilities or []) if str(c).strip()]
+
+                    new_template = {
+                        'name': display_name,
+                        'type': 'meets',
+                        'requiredCapabilities': required_caps,
+                        'subtasks': [
+                            {
+                                'taskName': display_name,
+                                'type': 'executable',
+                                'requiredCapabilities': required_caps,
+                                'duration': int(task_data.get('duration') or 0),
+                                'start-location': '@start-location',
+                                'end-location': '@end-location',
+                                'task_type': task_data.get('taskType')
+                            }
+                        ]
+                    }
+
+                    new_order = {
+                        'name': display_name,
+                        'quantity': 1,
+                        'earlieststartdate': task_data.get('earliestStartTime'),
+                        'duedate': task_data.get('latestDueDate'),
+                        'start-location': task_data.get('location'),
+                        'end-location': task_data.get('location'),
+                        'tasks': [display_name]
+                    }
+
+                    update_result = scenarios.update_one(
+                        {'name': scenario_name},
+                        {'$push': {
+                            'request_data.templates': new_template,
+                            'request_data.orders': new_order
+                        }}
+                    )
+                    print(f"[SAVE_TASK] ✓ Appended template/order to scenario '{scenario_name}' (matched: {update_result.matched_count}, modified: {update_result.modified_count})")
+                else:
+                    print(f"[SAVE_TASK] ⚠ Scenario '{scenario_name}' not found; skipping template/order update")
+            except Exception as e:
+                print(f"[SAVE_TASK] ⚠ Failed to update scenario templates/orders: {type(e).__name__}: {e}")
+
+            return {'success': True, 'message': 'Schedule regenerated and saved', 'updated_count': stored_count}
+        
+        else:
+            return {'success': False, 'message': 'No resource schedules were saved', 'updated_count': 0}
+            
+    except Exception as e:
+        print(f"[SAVE_TASK] ❌ Error saving task: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return {'success': False, 'message': str(e), 'updated_count': 0}
 
 
 @app.route('/api/locations', methods=['POST'])
@@ -634,6 +769,11 @@ def create_schedule():
         print(f"[SCHEDULE] Calling add_task with rows: {len(new_task_df)}")
         try:
             assignments_df = add_task(tds, new_task_df)
+            # Persist the modified TDS so later flows (e.g. assignment acceptance)
+            # operate on the updated state rather than the cached pre-change TDS.
+            if username:
+                user_tds_store[username] = tds
+                print(f"[SCHEDULE] Persisted modified TDS for user: {username}")
         except Exception as e:
             print(f"[SCHEDULE] add_task failed ({type(e).__name__}): {e}")
             print(f"[SCHEDULE] Reinitializing TDS after add_task failure for {username}")
@@ -649,6 +789,7 @@ def create_schedule():
         if hasattr(assignments_df, 'head'):
             print(f"[SCHEDULE] Assignments DF:\n{assignments_df}")
 
+        tds = apply_assignment(tds, assignments_df)
         output_rows = normalize_add_task_result(assignments_df)
         print(f"[SCHEDULE] Output rows for response: {len(output_rows)}")
         if output_rows and len(output_rows) > 0:
@@ -769,10 +910,15 @@ def get_all_resource_schedules():
 @app.route('/api/assignment-decision', methods=['POST'])
 def save_assignment_decision():
     """
-    Persist inbox messages when a generated assignment is accepted.
+    When assignment is accepted:
+    1. Save the task to resource_schedules (MongoDB) for all assigned resources
+    2. Create inbox messages for assigned personnel
+    
+    When rejected: Only record the rejection (no data save)
+    
     Expects: {
       "token": "jwt",
-      "accepted": true,
+      "accepted": true|false,
       "taskData": {...},
       "assignments": [...]
     }
@@ -789,22 +935,58 @@ def save_assignment_decision():
             return jsonify({'error': 'Invalid or expired token'}), 401
 
         username = payload['username']
-        if not accepted:
-            return jsonify({'message': 'Assignment rejection recorded'}), 200
-
         scenario_name = get_user_scenario_name(username)
-        docs = _build_assignment_inbox_docs(assignments, task_data, scenario_name, username)
-        if not docs:
-            return jsonify({'message': 'No assignment recipients found', 'created_count': 0}), 200
+        
+        if not accepted:
+            print(f"[ASSIGN_DECISION] Assignment rejected by {username}; rebuilding TDS from scenario")
+            try:
+                initialize_user_tds(username)
+                return jsonify({'message': 'Assignment rejected; TDS rebuilt from scenario'}), 200
+            except Exception as e:
+                print(f"[ASSIGN_DECISION] ⚠ Failed to rebuild TDS for {username}: {type(e).__name__}: {e}")
+                return jsonify({'message': 'Assignment rejected', 'tds_rebuild_error': str(e)}), 200
 
-        inbox_messages.insert_many(docs)
-        return jsonify({'message': 'Inbox messages created', 'created_count': len(docs)}), 201
+        # Step 1: Save task to resource_schedules (convert TDS assignments to MongoDB storage)
+        print(f"[ASSIGN_DECISION] Processing accepted assignment for user {username}")
+        epoch_date = user_epoch_store.get(username)
+        
+        selected_capabilities = data.get('selectedCapabilities') or []
+        save_result = _save_accepted_task_to_schedule(username, scenario_name, task_data, epoch_date, assignments, selected_capabilities)
+        print(f"[ASSIGN_DECISION] Save result: {save_result}")
+        
+        if not save_result.get('success'):
+            print(f"[ASSIGN_DECISION] ⚠ Task save failed: {save_result.get('message')}")
+            return jsonify({
+                'message': 'Task could not be saved to schedule',
+                'error_detail': save_result.get('message'),
+                'schedule_saved': False,
+                'inbox_created': 0
+            }), 400
+
+        # Step 2: Create inbox messages for assigned personnel
+        docs = _build_assignment_inbox_docs(assignments, task_data, scenario_name, username)
+        inbox_count = 0
+        if docs:
+            try:
+                inbox_messages.insert_many(docs)
+                inbox_count = len(docs)
+                print(f"[ASSIGN_DECISION] ✓ Created {inbox_count} inbox message(s)")
+            except Exception as e:
+                print(f"[ASSIGN_DECISION] ⚠ Failed to create inbox messages: {type(e).__name__}: {e}")
+                # Don't fail the whole request if inbox creation fails
+        
+        return jsonify({
+            'message': 'Assignment accepted and saved',
+            'schedule_saved': True,
+            'resources_updated': save_result.get('updated_count', 0),
+            'inbox_created': inbox_count
+        }), 201
 
     except (ServerSelectionTimeoutError, AutoReconnect) as e:
-        print(f"Save assignment decision DB error: {type(e).__name__}: {e}")
+        print(f"[ASSIGN_DECISION] MongoDB connectivity error: {type(e).__name__}: {e}")
         return jsonify({'error': 'Database is temporarily unreachable'}), 503
     except Exception as e:
-        print(f"Save assignment decision error: {type(e).__name__}: {e}")
+        print(f"[ASSIGN_DECISION] Unhandled error: {type(e).__name__}: {e}")
         traceback.print_exc()
         return jsonify({'error': 'Failed to save assignment decision'}), 500
 

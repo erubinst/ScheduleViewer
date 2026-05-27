@@ -389,6 +389,7 @@ function App() {
             accepted: true,
             taskData: formData,
             assignments: assignmentRows,
+            selectedCapabilities: selectedCapabilities,
           })
         });
         const data = await response.json().catch(() => ({}));
@@ -397,19 +398,44 @@ function App() {
           return;
         }
 
-        await loadInboxMessages(token);
+        // Refresh the user's current schedule from the DB and show View Schedule
+        await loadCurrentSchedule(token);
+        // Also refresh Gantt data in case other views need it
+        await loadAllResourceSchedules(token);
         setAssignmentAccepted(true);
         setAssignmentRejected(false);
         setShowSchedules(false);
         setAssignmentRows([]);
         setSelectedCapabilities([]);
-        setActiveTab('inbox');
+        setActiveTab('view');
       } catch (error) {
         console.error('Failed to save accepted assignment:', error);
         alert('Could not save accepted assignment');
       }
     } else {
       console.log('[ASSIGNMENT] User rejected generated assignment');
+      try {
+        const response = await fetch(apiUrl('/api/assignment-decision'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            accepted: false,
+            taskData: formData,
+            assignments: assignmentRows,
+            selectedCapabilities: selectedCapabilities
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          console.error('Failed to notify server of rejection:', data.error || response.status);
+        } else {
+          // Refresh user's schedule from DB (TDS rebuilt server-side)
+          await loadCurrentSchedule(token);
+        }
+      } catch (error) {
+        console.error('Error notifying server of rejection:', error);
+      }
       setAssignmentAccepted(false);
       setAssignmentRejected(true);
     }

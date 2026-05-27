@@ -8,13 +8,21 @@ import json
 
 # Import your scheduler
 from tds.executer import run_scheduler
+import os
+import sys
+
+# Ensure the parent `backend` folder is on sys.path so sibling modules
+# like `mongo_client` can be imported when this script is executed
+# directly (e.g. `python backend/initialize_schedule/run_initial_schedule.py`).
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from mongo_client import create_mongo_client
 
 # MongoDB connection (same as your backend)
 MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
 
 # Configuration
-SCENARIO_NAME = 'scenario_week_2026-04-12'
+SCENARIO_NAME = 'scenario_week_2026-05-03'
 
 
 def get_scenario(scenario_name):
