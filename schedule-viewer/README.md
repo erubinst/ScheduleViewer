@@ -14,6 +14,17 @@ Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 The page will reload when you make changes.\
 You may also see any lint errors in the console.
 
+#### Testing on a phone
+
+If you want to view the app on your phone while developing:
+
+1. Put your computer and phone on the same Wi-Fi network.
+2. Run `npm start` in this folder.
+3. Use your computer's local IP address instead of `localhost`, for example `http://192.168.1.21:3000`.
+4. If the app needs backend data, start the backend server too and make sure it is reachable on the network.
+
+This project starts the frontend dev server with `HOST=0.0.0.0`, so it can accept requests from your phone on the local network.
+
 ### `npm test`
 
 Launches the test runner in the interactive watch mode.\

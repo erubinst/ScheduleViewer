@@ -242,17 +242,17 @@ function App() {
 
   // Handle logout
   const handleLogout = () => {
-    if (window.confirm('Are you sure you want to log out?')) {
-      localStorage.removeItem('taskSchedulerToken');
-      localStorage.removeItem('taskSchedulerUsername');
-      setToken(null);
-      setUsername(null);
-      setIsLoggedIn(false);
-      setActiveTab('add');
-      setShowSchedules(false);
-      setAssignmentRows([]);
-      setSelectedCapabilities([]);
-    }
+    localStorage.removeItem('taskSchedulerToken');
+    localStorage.removeItem('taskSchedulerUsername');
+    setToken(null);
+    setUsername(null);
+    setIsLoggedIn(false);
+    setActiveTab('add');
+    setShowSchedules(false);
+    setAssignmentRows([]);
+    setSelectedCapabilities([]);
+    setAuthError('');
+    setAuthLoading(false);
   };
 
   // Tab state
@@ -502,14 +502,14 @@ function App() {
               {showSignup ? (
                 <p>
                   Already have an account?{' '}
-                  <button className="link-button" onClick={() => { setShowSignup(false); setAuthError(''); }}>
+                  <button type="button" className="link-button" onClick={() => { setShowSignup(false); setAuthError(''); }}>
                     Log In
                   </button>
                 </p>
               ) : (
                 <p>
                   Don't have an account?{' '}
-                  <button className="link-button" onClick={() => { setShowSignup(true); setAuthError(''); }}>
+                  <button type="button" className="link-button" onClick={() => { setShowSignup(true); setAuthError(''); }}>
                     Sign Up
                   </button>
                 </p>
@@ -556,7 +556,7 @@ function App() {
             Inbox
           </button>
         </div>
-        <button className="logout-button" onClick={handleLogout}>Log Out</button>
+        <button type="button" className="logout-button" onClick={handleLogout}>Log Out</button>
       </div>
 
       {/* ── ADD TASK TAB ──────────────────────────────────────────────── */}

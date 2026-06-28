@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, LabelList, ResponsiveContainer } from 'recharts';
 import { includeTaskForDisplay } from './taskFilters';
 // buildin gantt chart using stacked bar charts
 
@@ -198,6 +198,8 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
         })
       : null);
 
+  const chartHeight = Math.max(320, 120 + people.length * 44);
+
   // Tooltip: shows task name, person, time range, and duration for the bar segment you're hovering over.
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload || !payload.length) return null;
@@ -261,50 +263,52 @@ function GanttChart({ tasks, defaultPerson, dateLabel, resourceOrder }) {
           {displayDate}
         </p>
       )}
-      <BarChart
-        width={800}
-        height={400}
-        data={chartData}
-        layout="vertical"
-        margin={{ top: 20, right: 30, left: 100, bottom: 20 }}
-      >
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis
-          type="number"
-          domain={[0, maxTime]}
-          ticks={Array.from(
-            { length: Math.floor(MIDNIGHT_OFFSET / 2) + 1 },
-            (_, i) => i * 2
-          )}
-          tickFormatter={value => (value === 16 ? '24:00' : `${HOUR_0 + value}:00`)}
-          label={{ value: 'Time', position: 'insideBottom', offset: -10, style: { fontSize: 16 } }}
-          style={{ fontSize: 14 }}
-        />
-        <YAxis
-          type="category"
-          dataKey="person"
-          width={90}
-          style={{ fontSize: 16 }}
-        />
-        {/* shared={false} → tooltip gets only the bar segment under the cursor, not all segments in the row */}
-        <Tooltip content={<CustomTooltip />} shared={false} />
-        {Array.from({ length: maxSegments }).map((_, i) => (
-          <Bar key={i} dataKey={`${SEG_PREFIX}${i}_len`} stackId="a" isAnimationActive={false}>
-            <LabelList
-              dataKey={`${SEG_PREFIX}${i}_len`}
-              content={props => renderBarLabel(i, MIN_BAR_WIDTH_PX)({ ...props, payload: chartData[props.index] })}
-              position="insideLeft"
+      <div className="gantt-chart-responsive-wrap">
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 20, right: 24, left: 90, bottom: 20 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              type="number"
+              domain={[0, maxTime]}
+              ticks={Array.from(
+                { length: Math.floor(MIDNIGHT_OFFSET / 2) + 1 },
+                (_, i) => i * 2
+              )}
+              tickFormatter={value => (value === 16 ? '24:00' : `${HOUR_0 + value}:00`)}
+              label={{ value: 'Time', position: 'insideBottom', offset: -10, style: { fontSize: 16 } }}
+              style={{ fontSize: 14 }}
             />
-            {chartData.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={entry[`${SEG_PREFIX}${i}_isGap`] ? 'transparent' : (entry[`${SEG_PREFIX}${i}_color`] || '#1e3a8a')}
-                stroke={entry[`${SEG_PREFIX}${i}_isGap`] ? 'none' : undefined}
-              />
+            <YAxis
+              type="category"
+              dataKey="person"
+              width={90}
+              style={{ fontSize: 16 }}
+            />
+            {/* shared={false} → tooltip gets only the bar segment under the cursor, not all segments in the row */}
+            <Tooltip content={<CustomTooltip />} shared={false} />
+            {Array.from({ length: maxSegments }).map((_, i) => (
+              <Bar key={i} dataKey={`${SEG_PREFIX}${i}_len`} stackId="a" isAnimationActive={false}>
+                <LabelList
+                  dataKey={`${SEG_PREFIX}${i}_len`}
+                  content={props => renderBarLabel(i, MIN_BAR_WIDTH_PX)({ ...props, payload: chartData[props.index] })}
+                  position="insideLeft"
+                />
+                {chartData.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={entry[`${SEG_PREFIX}${i}_isGap`] ? 'transparent' : (entry[`${SEG_PREFIX}${i}_color`] || '#1e3a8a')}
+                    stroke={entry[`${SEG_PREFIX}${i}_isGap`] ? 'none' : undefined}
+                  />
+                ))}
+              </Bar>
             ))}
-          </Bar>
-        ))}
-      </BarChart>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
