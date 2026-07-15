@@ -683,7 +683,7 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
                 {taskDisplayName(detailTask) || '—'}
               </h1>
               <p><strong>LOCATION:</strong> {detailTask.location ?? '—'}</p>
-              <p><strong>START:</strong> {formatTime(detailTask.start_lb)}</p>
+              {/* Event times: prefer display_start / display_end for what the user sees */}
               <p><strong>START:</strong> {formatTime(detailTask.display_start || detailTask.start_lb)}</p>
               <p><strong>END:</strong> {formatTime(detailTask.display_end || detailTask.end_lb)}</p>
 
@@ -750,8 +750,8 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
             </button>
             <div className="daybyday-modal-content">
               <h1 style={{ fontWeight: 700, marginTop: 0 }}>Travel</h1>
-              <p><strong>START:</strong> {formatTime(travelGroup.start_lb)}</p>
-              <p><strong>END:</strong> {formatTime(travelGroup.end_lb)}</p>
+              <p><strong>START:</strong> {formatTime(travelGroup.display_start || travelGroup.start_lb)}</p>
+              <p><strong>END:</strong> {formatTime(travelGroup.display_end || travelGroup.end_lb)}</p>
 
               <hr />
 
@@ -893,13 +893,8 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
                     if (top < 0 || top > maxVisibleTop) return null;
 
                     return (
-<<<<<<< HEAD
-                      <div
-                        key={`presence-${idx}-${startVal}`}
-=======
                       <DraggableBlock
                         key={`presence-${idx}-${task.start_lb}`}
->>>>>>> 95bc0c1 (schedule viewer changes)
                         className="calendar-task"
                         style={{ backgroundColor: CALENDAR_BLUE, position: 'absolute', left: 2, right: 2 }}
                         top={top}
