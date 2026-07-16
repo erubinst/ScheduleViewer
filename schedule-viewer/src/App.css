@@ -890,391 +890,393 @@ input::placeholder {
   justify-content: center;
   padding: 32px 20px;
 
-  .view-schedule-container {
-    padding: 0 20px;
-    max-width: none;
-    width: 100%;
-    margin: 0 auto;
+}
+.view-schedule-container {
+  padding: 0 20px;
+  max-width: none;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 560px;
+  background: white;
+  padding: 56px 48px;
+  border-radius: 20px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  padding: 24px 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.login-card h1 {
+  margin-bottom: 18px;
+}
+
+.login-subtitle {
+  text-align: center;
+  color: #64748b;
+  font-size: 18px;
+  margin-bottom: 28px;
+  margin-top: -8px;
+  margin-bottom: 20px;
+}
+
+.current-schedule-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+
+}
+.login-form {
+  gap: 22px;
+}
+
+.login-form .form-group {
+  gap: 8px;
+}
+
+.login-form label {
+  font-size: 16px;
+  color: #334155;
+}
+
+.login-form input {
+  font-size: 16px;
+  padding: 14px 16px;
+}
+
+.login-form .submit-button {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.input-hint {
+  color: #64748b;
+  font-size: 13px;
+  margin-top: -2px;
+}
+
+.error-message {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  font-size: 14px;
+}
+
+.auth-switch {
+  margin-top: 22px;
+  text-align: center;
+  color: #475569;
+}
+
+.auth-switch p {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.link-button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #3498db;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-button:hover {
+  color: #1f6fa8;
+}
+
+.link-button:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .gantt-chart-container {
+    overflow-x: scroll;
+  }
+
+  .view-schedule-content,
+  .container {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-container {
+    min-height: 100svh;
+    padding: 16px;
   }
 
   .login-card {
-    width: 100%;
-    max-width: 560px;
-    background: white;
-    padding: 56px 48px;
-    border-radius: 20px;
-    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
-    padding: 24px 16px;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 100%;
+    padding: 32px 20px;
+    border-radius: 14px;
   }
 
   .login-card h1 {
-    margin-bottom: 18px;
+    font-size: 32px;
   }
 
   .login-subtitle {
-    text-align: center;
-    color: #64748b;
     font-size: 18px;
     margin-bottom: 28px;
-    margin-top: -8px;
+  }
+
+  .login-form {
+    gap: 20px;
+  }
+
+  .header-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px 16px;
+    position: sticky;
     margin-bottom: 20px;
   }
 
-  .current-schedule-card {
-    background: #f8f9fa;
-    border-radius: 12px;
-    padding: 12px;
-    margin-bottom: 16px;
+  .user-info {
+    justify-content: center;
+  }
+
+  .username-display {
+    font-size: 18px;
+  }
+
+  .tab-navigation {
+    justify-content: flex-start;
     overflow-x: auto;
-
-    .login-form {
-      gap: 22px;
-    }
-
-    .login-form .form-group {
-      gap: 8px;
-    }
-
-    .login-form label {
-      font-size: 16px;
-      color: #334155;
-    }
-
-    .login-form input {
-      font-size: 16px;
-      padding: 14px 16px;
-    }
-
-    .login-form .submit-button {
-      width: 100%;
-      margin-top: 6px;
-    }
-
-    .input-hint {
-      color: #64748b;
-      font-size: 13px;
-      margin-top: -2px;
-    }
-
-    .error-message {
-      padding: 12px 14px;
-      border-radius: 10px;
-      background: #fef2f2;
-      color: #b91c1c;
-      border: 1px solid #fecaca;
-      font-size: 14px;
-    }
-
-    .auth-switch {
-      margin-top: 22px;
-      text-align: center;
-      color: #475569;
-    }
-
-    .auth-switch p {
-      font-size: 15px;
-      line-height: 1.5;
-    }
-
-    .link-button {
-      appearance: none;
-      border: none;
-      background: transparent;
-      color: #3498db;
-      font: inherit;
-      font-weight: 600;
-      padding: 0;
-      margin: 0;
-      cursor: pointer;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-
-    .link-button:hover {
-      color: #1f6fa8;
-    }
-
-    .link-button:focus-visible {
-      outline: 2px solid #93c5fd;
-      outline-offset: 3px;
-    }
-
-    @media (max-width: 900px) {
-      .gantt-chart-container {
-        overflow-x: scroll;
-      }
-
-      .view-schedule-content,
-      .container {
-        padding-left: 24px;
-        padding-right: 24px;
-      }
-    }
-
-    @media (max-width: 768px) {
-      .login-container {
-        min-height: 100svh;
-        padding: 16px;
-      }
-
-      .login-card {
-        max-width: 100%;
-        padding: 32px 20px;
-        border-radius: 14px;
-      }
-
-      .login-card h1 {
-        font-size: 32px;
-      }
-
-      .login-subtitle {
-        font-size: 18px;
-        margin-bottom: 28px;
-      }
-
-      .login-form {
-        gap: 20px;
-      }
-
-      .header-container {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-        padding: 12px 16px;
-        position: sticky;
-        margin-bottom: 20px;
-      }
-
-      .user-info {
-        justify-content: center;
-      }
-
-      .username-display {
-        font-size: 18px;
-      }
-
-      .tab-navigation {
-        justify-content: flex-start;
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        gap: 8px;
-        padding-bottom: 4px;
-        -webkit-overflow-scrolling: touch;
-      }
-
-      .tab-navigation::-webkit-scrollbar {
-        display: none;
-      }
-
-      .tab-button {
-        padding: 12px 16px;
-        font-size: 15px;
-        white-space: nowrap;
-        border-bottom-width: 3px;
-      }
-
-      .logout-button {
-        font-size: 14px;
-        padding: 10px 16px;
-      }
-
-      .container,
-      .view-schedule-content {
-        padding: 24px 16px;
-        padding: 20px 12px;
-      }
-
-      h1,
-      .schedules-title {
-        font-size: 28px;
-        margin-bottom: 24px;
-      }
-
-      label {
-        font-size: 16px;
-      }
-
-      input,
-      select {
-        font-size: 16px;
-        padding: 14px;
-      }
-
-      .submit-button,
-      .select-button {
-        font-size: 18px;
-        padding: 16px 24px;
-      }
-
-      .schedule-header {
-        flex-direction: column;
-        gap: 15px;
-        align-items: flex-start;
-      }
-
-      .schedule-header h2 {
-        font-size: 24px;
-      }
-
-      .task-info {
-        font-size: 18px;
-      }
-
-      .capabilities-checkbox-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .current-schedule-card {
-        padding: 16px;
-      }
-
-      .inbox-layout {
-        flex-direction: column;
-      }
-
-      .inbox-list-pane {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid #e5e7eb;
-        max-height: 42vh;
-        padding: 16px;
-      }
-
-      .inbox-detail-pane {
-        padding: 16px;
-      }
-
-      .inbox-list-heading,
-      .inbox-detail-heading {
-        font-size: 26px;
-      }
-
-      .daybyday-modal-overlay {
-        padding: 12px;
-        align-items: flex-end;
-      }
-
-      .daybyday-modal-panel {
-        max-width: 100%;
-        border-radius: 16px 16px 0 0;
-        padding: 18px 16px 20px;
-      }
-
-      .daybyday-modal-content {
-        padding-right: 0;
-      }
-
-      .daybyday-modal-close {
-        top: 8px;
-        right: 8px;
-      }
-
-      .day-column {
-        min-width: 120px;
-      }
-
-      .time-column {
-        width: 64px;
-      }
-
-      .day-header {
-        height: 78px;
-      }
-
-      .day-name {
-        font-size: 11px;
-      }
-
-      .day-number {
-        font-size: 20px;
-        width: 34px;
-        height: 34px;
-      }
-
-      .calendar-task {
-        font-size: 10px;
-        padding: 3px 4px;
-      }
-
-      .task-time-small,
-      .task-name-small,
-      .task-location-small {
-        font-size: 10px;
-      }
-    }
-
-    @media (max-width: 540px) {
-      .tab-navigation {
-        gap: 6px;
-      }
-
-      .tab-button {
-        padding: 10px 14px;
-        font-size: 14px;
-      }
-
-      .schedule-card,
-      .view-schedule-content {
-        padding-left: 14px;
-        padding-right: 14px;
-      }
-
-      .assignment-summary-line {
-        font-size: 15px;
-        line-height: 1.55;
-      }
-
-      .assignment-stats-grid,
-      .assignment-decision-buttons {
-        flex-direction: column;
-      }
-
-      .assignment-accept-btn,
-      .assignment-reject-btn {
-        width: 100%;
-      }
-
-      .week-navigation,
-      .gantt-day-nav {
-        align-items: stretch;
-      }
-
-      .week-nav-btn,
-      .gantt-day-btn {
-        width: 100%;
-      }
-
-      .gantt-day-buttons {
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .gantt-resource-count,
-      .gantt-day-label {
-        text-align: center;
-      }
-    }
-
-    /* ==================== PRINT STYLES ==================== */
-
-    @media print {
-      body {
-        background: white;
-      }
-
-      .user-bar,
-      .tab-navigation,
-      .back-button,
-      .submit-button,
-      .select-button,
-      .logout-button {
-        display: none;
-      }
-
-      .schedule-card {
-        page-break-inside: avoid;
-      }
-    }
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-navigation::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-button {
+    padding: 12px 16px;
+    font-size: 15px;
+    white-space: nowrap;
+    border-bottom-width: 3px;
+  }
+
+  .logout-button {
+    font-size: 14px;
+    padding: 10px 16px;
+  }
+
+  .container,
+  .view-schedule-content {
+    padding: 24px 16px;
+    padding: 20px 12px;
+  }
+
+  h1,
+  .schedules-title {
+    font-size: 28px;
+    margin-bottom: 24px;
+  }
+
+  label {
+    font-size: 16px;
+  }
+
+  input,
+  select {
+    font-size: 16px;
+    padding: 14px;
+  }
+
+  .submit-button,
+  .select-button {
+    font-size: 18px;
+    padding: 16px 24px;
+  }
+
+  .schedule-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  .schedule-header h2 {
+    font-size: 24px;
+  }
+
+  .task-info {
+    font-size: 18px;
+  }
+
+  .capabilities-checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .current-schedule-card {
+    padding: 16px;
+  }
+
+  .inbox-layout {
+    flex-direction: column;
+  }
+
+  .inbox-list-pane {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+    max-height: 42vh;
+    padding: 16px;
+  }
+
+  .inbox-detail-pane {
+    padding: 16px;
+  }
+
+  .inbox-list-heading,
+  .inbox-detail-heading {
+    font-size: 26px;
+  }
+
+  .daybyday-modal-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  .daybyday-modal-panel {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding: 18px 16px 20px;
+  }
+
+  .daybyday-modal-content {
+    padding-right: 0;
+  }
+
+  .daybyday-modal-close {
+    top: 8px;
+    right: 8px;
+  }
+
+  .day-column {
+    min-width: 120px;
+  }
+
+  .time-column {
+    width: 64px;
+  }
+
+  .day-header {
+    height: 78px;
+  }
+
+  .day-name {
+    font-size: 11px;
+  }
+
+  .day-number {
+    font-size: 20px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .calendar-task {
+    font-size: 10px;
+    padding: 3px 4px;
+  }
+
+  .task-time-small,
+  .task-name-small,
+  .task-location-small {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 540px) {
+  .tab-navigation {
+    gap: 6px;
+  }
+
+  .tab-button {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .schedule-card,
+  .view-schedule-content {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .assignment-summary-line {
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .assignment-stats-grid,
+  .assignment-decision-buttons {
+    flex-direction: column;
+  }
+
+  .assignment-accept-btn,
+  .assignment-reject-btn {
+    width: 100%;
+  }
+
+  .week-navigation,
+  .gantt-day-nav {
+    align-items: stretch;
+  }
+
+  .week-nav-btn,
+  .gantt-day-btn {
+    width: 100%;
+  }
+
+  .gantt-day-buttons {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gantt-resource-count,
+  .gantt-day-label {
+    text-align: center;
+  }
+}
+
+/* ==================== PRINT STYLES ==================== */
+
+@media print {
+  body {
+    background: white;
+  }
+
+  .user-bar,
+  .tab-navigation,
+  .back-button,
+  .submit-button,
+  .select-button,
+  .logout-button {
+    display: none;
+  }
+
+  .schedule-card {
+    page-break-inside: avoid;
+  }
+}
