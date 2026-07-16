@@ -441,6 +441,83 @@ function App() {
     }
   };
 
+  // ── Reschedule handler — called by DayByDaySchedule after user confirms move ──
+  const handleRescheduleTask = (pendingMove) => {
+    setCurrentSchedule(prev => {
+      const tasks = [...(prev.tasks || [])];
+
+      if (pendingMove.type === 'presence') {
+        const { task, newStart, newEnd, linkedTravel } = pendingMove;
+
+        // Delta in milliseconds
+        const deltaMs = new Date(newStart) - new Date(task.start_lb);
+
+        // Update the presence task
+        const updatedTasks = tasks.map(t => {
+          if (t === task || (t.start_lb === task.start_lb && t.end_lb === task.end_lb && t.task_name === task.task_name)) {
+            return { ...t, start_lb: newStart, end_lb: newEnd };
+          }
+          return t;
+        });
+
+        // Shift all tasks that belong to linked travel groups by the same delta
+        const travelTaskSet = new Set();
+        for (const tg of (linkedTravel || [])) {
+          for (const tt of tg.tasks) travelTaskSet.add(tt);
+        }
+
+        const finalTasks = updatedTasks.map(t => {
+          if (travelTaskSet.has(t)) {
+            const newTStart = new Date(new Date(t.start_lb).getTime() + deltaMs).toISOString();
+            const newTEnd = new Date(new Date(t.end_lb).getTime() + deltaMs).toISOString();
+            return { ...t, start_lb: newTStart, end_lb: newTEnd };
+          }
+          return t;
+        });
+
+        return { ...prev, tasks: finalTasks };
+      }
+
+      if (pendingMove.type === 'travel-group') {
+        const { travelItem, newTravelStart, newTravelEnd } = pendingMove;
+        const deltaMs = new Date(newTravelStart) - new Date(travelItem.start_lb);
+
+        const travelTaskSet = new Set(travelItem.tasks);
+        const finalTasks = tasks.map(t => {
+          if (travelTaskSet.has(t)) {
+            const newTStart = new Date(new Date(t.start_lb).getTime() + deltaMs).toISOString();
+            const newTEnd = new Date(new Date(t.end_lb).getTime() + deltaMs).toISOString();
+            return { ...t, start_lb: newTStart, end_lb: newTEnd };
+          }
+          return t;
+        });
+
+        return { ...prev, tasks: finalTasks };
+      }
+
+      return prev;
+    });
+
+    // ── Inbox notification ─────────────────────────────────────────────────
+    const { type, oldStartLabel, newStartLabel, dateLabel, affectedOthers } = pendingMove;
+    const eventName =
+      type === 'presence'
+        ? (pendingMove.task?.task_name ?? pendingMove.task?.taskName ?? 'Event')
+        : 'Travel';
+
+    const msgBody = `${eventName} moved from ${oldStartLabel} to ${newStartLabel} on ${dateLabel}.`;
+    const newMsg = {
+      id: Date.now(),
+      sender: 'Schedule System',
+      subject: `Schedule updated: ${eventName}`,
+      message: msgBody,
+      affectedOthers: affectedOthers || null,
+      timestamp: new Date().toISOString(),
+    };
+
+    setInboxMsgs(prev => [newMsg, ...prev]);
+  };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'inbox' && token) {
