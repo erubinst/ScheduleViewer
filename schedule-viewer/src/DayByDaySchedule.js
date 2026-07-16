@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { includeTaskForDisplay } from './taskFilters';
 import { buildDetailPopupTransportInfo, isPickupTask, isDropoffTask, isTravelTask } from './taskRelationshipHelpers';
 
@@ -14,6 +14,13 @@ function taskDisplayName(task) {
   const v = task.task_name ?? task.taskName ?? task.order;
   return v != null ? String(v).trim() : '';
 }
+
+const toLocalDateString = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 function normalizedTitle(task) {
   return taskDisplayName(task).toLowerCase().replace(/_/g, ' ');
@@ -129,9 +136,18 @@ function groupDayTasks(dayTasks) {
 
 function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [dateOffset, setDateOffset] = useState(0); // for daily view
   const [detailTask, setDetailTask] = useState(null);
   const [travelGroup, setTravelGroup] = useState(null);   // for travel popup
   const [deleteCandidate, setDeleteCandidate] = useState(null); // for delete confirm
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -142,7 +158,7 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
     const startVal = task.display_start || task.start_lb;
     if (!startVal) return;
     const date = new Date(startVal);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateString(date);
     if (!tasksByDate[dateStr]) tasksByDate[dateStr] = [];
     tasksByDate[dateStr].push(task);
   });
@@ -164,11 +180,37 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
 
   const startOfViewWeek = getSunday(weekOffset);
   const currentWeekDates = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startOfViewWeek);
-    d.setDate(startOfViewWeek.getDate() + i);
-    currentWeekDates.push(d.toISOString().split('T')[0]);
+  
+  if (isMobile) {
+    const d = new Date();
+    d.setDate(d.getDate() + dateOffset);
+    currentWeekDates.push(toLocalDateString(d));
+  } else {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfViewWeek);
+      d.setDate(startOfViewWeek.getDate() + i);
+      currentWeekDates.push(toLocalDateString(d));
+    }
   }
+
+  const formatWeekRange = (start) => {
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const startMonth = start.toLocaleDateString('en-US', { month: 'short' });
+    const startDay = start.getDate();
+    const endMonth = end.toLocaleDateString('en-US', { month: 'short' });
+    const endDay = end.getDate();
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
+
+    if (startMonth === endMonth && startYear === endYear) {
+      return `${startMonth} ${startDay} to ${endDay}, ${startYear}`;
+    } else if (startYear === endYear) {
+      return `${startMonth} ${startDay} to ${endMonth} ${endDay}, ${startYear}`;
+    } else {
+      return `${startMonth} ${startDay}, ${startYear} to ${endMonth} ${endDay}, ${endYear}`;
+    }
+  };
 
   const formatDateHeader = (dateStr) => {
     const date = new Date(dateStr + 'T00:00:00Z');
@@ -217,11 +259,11 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
   // ── Presence event modal data ──────────────────────────────────────────────
   let transportModal = null;
   if (detailTask != null) {
-    const modalDayKey = new Date(detailTask.display_start || detailTask.start_lb).toISOString().split('T')[0];
+    const modalDayKey = toLocalDateString(new Date(detailTask.display_start || detailTask.start_lb));
     const allTasksForDay = (tasks || []).filter(
       (t) => {
         const tv = t.display_start || t.start_lb;
-        return tv && new Date(tv).toISOString().split('T')[0] === modalDayKey;
+        return tv && toLocalDateString(new Date(tv)) === modalDayKey;
       }
     );
     transportModal = buildDetailPopupTransportInfo(detailTask, currentUser, allTasksForDay, formatTime);
@@ -234,11 +276,11 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
     const anchorTask = travelGroup.tasks.find(
       (t) => (t.capability === 'travel') || normalizedTitle(t).startsWith('travel')
     ) ?? travelGroup.tasks[0];
-    const modalDayKey = new Date(anchorTask.display_start || anchorTask.start_lb).toISOString().split('T')[0];
+    const modalDayKey = toLocalDateString(new Date(anchorTask.display_start || anchorTask.start_lb));
     const allTasksForDay = (tasks || []).filter(
       (t) => {
         const tv = t.display_start || t.start_lb;
-        return tv && new Date(tv).toISOString().split('T')[0] === modalDayKey;
+        return tv && toLocalDateString(new Date(tv)) === modalDayKey;
       }
     );
     // Scope to this gray bar’s segments only so DRIVING / pickup / dropoff times aren’t mixed with other trips
@@ -430,14 +472,18 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask }) {
 
       {/* ── Week navigation ───────────────────────────────────────────────── */}
       <div className="week-navigation">
-        <button className="week-nav-btn" onClick={() => setWeekOffset(weekOffset - 1)}>
-          ← Previous Week
+        <button className="week-nav-btn" onClick={() => isMobile ? setDateOffset(dateOffset - 1) : setWeekOffset(weekOffset - 1)}>
+          {isMobile ? '←' : '← Previous Week'}
         </button>
         <span className="week-indicator">
-          {startOfViewWeek.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          {isMobile ? (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + dateOffset);
+            return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+          })() : formatWeekRange(startOfViewWeek)}
         </span>
-        <button className="week-nav-btn" onClick={() => setWeekOffset(weekOffset + 1)}>
-          Next Week →
+        <button className="week-nav-btn" onClick={() => isMobile ? setDateOffset(dateOffset + 1) : setWeekOffset(weekOffset + 1)}>
+          {isMobile ? '→' : 'Next Week →'}
         </button>
       </div>
 

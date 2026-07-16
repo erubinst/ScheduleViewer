@@ -672,6 +672,162 @@ input::placeholder {
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
 }
 
+/* ==================== WEEK NAVIGATION ==================== */
+.week-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.week-nav-btn {
+  padding: 8px 16px;
+  font-size: 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.week-nav-btn:hover {
+  background: #e2e8f0;
+}
+
+.week-indicator {
+  font-size: 16px;
+  font-weight: 600;
+  color: #334155;
+  min-width: 200px;
+  text-align: center;
+}
+
+/* ==================== CALENDAR GRID (BASE STYLES) ==================== */
+.calendar-grid {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: white;
+  margin-top: 20px;
+}
+
+.time-column {
+  width: 80px;
+  flex-shrink: 0;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.time-header {
+  height: 80px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.time-label {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 13px;
+  color: #64748b;
+  transform: translateY(-8px);
+}
+
+.day-column {
+  flex: 1;
+  min-width: 140px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.day-column:last-child {
+  border-right: none;
+}
+
+.day-header {
+  height: 80px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.day-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.day-number {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin-top: 4px;
+}
+
+.day-timeline {
+  position: relative;
+  background: white;
+}
+
+.hour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+.calendar-task {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  border-radius: 6px;
+  padding: 8px;
+  color: white;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-task--travel-group {
+  padding: 4px;
+}
+
+.task-time-small {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.task-name-small {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-location-small {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-top: auto;
+}
+
 /* ==================== RESPONSIVE DESIGN ==================== */
 
 .app {
