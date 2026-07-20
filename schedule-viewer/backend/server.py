@@ -17,7 +17,8 @@ import pandas as pd
 
 from add_task import retrieve_current_schedule, retrieve_scenario
 from mongo_client import create_mongo_client
-from tds.executer import reload_tds, add_task, export_schedule, apply_assignment
+from tds.executer import reload_tds, add_task, apply_assignment
+from tds.utils import export_schedule_to_df
 from pymongo.errors import ServerSelectionTimeoutError, AutoReconnect
 
 app = Flask(__name__)
@@ -503,7 +504,7 @@ def _save_accepted_task_to_schedule(username, scenario_name, task_data, epoch_da
         # Extract schedule DataFrame directly from the modified TDS
         print(f"[SAVE_TASK] Extracting schedule from modified TDS via export_schedule...")
         try:
-            df = export_schedule(tds, epoch_date)
+            df = export_schedule_to_df(tds, epoch_date)
             # print the df rows with the task_name matching the new task
             print(f"[SAVE_TASK] Schedule entries for task '{task_name}':")
             for _, row in df[df['task_name'] == task_name].iterrows():
@@ -1017,6 +1018,56 @@ def get_inbox_messages():
         print(f"Get inbox error: {type(e).__name__}: {e}")
         return jsonify({'error': 'Failed to fetch inbox messages'}), 500
 
+## Deleting a task, creating a inbox msg to notify the user
+@app.route('/api/inbox/create', methods=['POST'])
+def create_inbox_message():
+    """
+    Insert a single inbox message for the authenticated user.
+    Used for notifications (e.g. delete requested) without modifying schedules.
+    Expects: { token, subject, message, sender? }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        token = data.get('token')
+
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+
+        username = payload['username']
+        subject = (data.get('subject') or '').strip()
+        message = (data.get('message') or '').strip()
+        sender = (data.get('sender') or 'Schedule System').strip()
+
+        if not subject or not message:
+            return jsonify({'error': 'subject and message are required'}), 400
+
+        doc = {
+            'recipient': username,
+            'sender': sender,
+            'subject': subject,
+            'message': message,
+            'task_name': data.get('task_name'),
+            'task_location': data.get('task_location'),
+            'scenario_name': data.get('scenario_name'),
+            'created_by': username,
+            'created_at': datetime.utcnow(),
+            'read': False,
+        }
+        result = inbox_messages.insert_one(doc)
+        doc['_id'] = result.inserted_id
+        print(f"[INBOX] Created message for '{username}': {subject}")
+
+        return jsonify({'message': _serialize_inbox_doc(doc)}), 201
+
+    except (ServerSelectionTimeoutError, AutoReconnect) as e:
+        print(f"Create inbox DB error: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Database is temporarily unreachable'}), 503
+    except Exception as e:
+        print(f"Create inbox error: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to create inbox message'}), 500
+
 
 # ======================= ADMIN/UTILITY ROUTES =======================
 
@@ -1054,6 +1105,8 @@ if __name__ == '__main__':
     print("  POST /api/schedule      - Add task and return input df")
     print("  POST /api/current-schedule - Get user's current schedule")
     print("  POST /api/all-resource-schedules - All resources (multi-person Gantt)")
+    print("  POST /api/inbox         - Fetch inbox messages for user")
+    print("  POST /api/inbox/create  - Create an inbox notification")
     print("  GET  /health            - Health check")
     print("  GET  /api/users         - List all users (debug)")
     print("=" * 60)

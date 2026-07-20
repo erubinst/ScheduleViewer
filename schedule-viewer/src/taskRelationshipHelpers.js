@@ -307,11 +307,13 @@ function normEventKey(s) {
 
 /**
  * Find a real-world location for an event encoded in travel/dropoff names
- * (e.g. dvintagevisit → row `gvintagevisit` with location "Vintage").
+ * (e.g. dvintagevisit → row `gvintagevisit` with location "Vintage",
+ * or denim_downtime_2640 → that downtime row's location "SeniorApartments").
  */
 function resolveEventLocationFromSchedule(eventSlug, associatedTasks, allTasksForDay) {
   if (!eventSlug) return null;
-  const target = normEventKey(String(eventSlug).toLowerCase());
+  const targetRaw = String(eventSlug).toLowerCase().trim();
+  const target = normEventKey(targetRaw);
   if (!target) return null;
 
   const pool = [];
@@ -325,6 +327,12 @@ function resolveEventLocationFromSchedule(eventSlug, associatedTasks, allTasksFo
     const loc = t.location != null && String(t.location).trim();
     if (!loc) continue;
 
+    const raw = taskNameRaw(t).toLowerCase();
+    // Exact task_name match — needed for downtime ids (denim_downtime_2640)
+    if (raw === targetRaw || normEventKey(raw) === target) {
+      return String(t.location).trim();
+    }
+
     if (isDropoffTask(t)) {
       const ev = getDropoffEvent(t);
       if (ev && normEventKey(ev) === target) {
@@ -333,9 +341,8 @@ function resolveEventLocationFromSchedule(eventSlug, associatedTasks, allTasksFo
     }
 
     if (isPresenceTask(t)) {
-      const raw = taskNameRaw(t).toLowerCase();
       const first = raw.split('_')[0];
-      if (normEventKey(raw) === target || normEventKey(first) === target) {
+      if (normEventKey(first) === target) {
         return String(t.location).trim();
       }
     }
@@ -354,7 +361,7 @@ function extractSegmentBeforeTo(name) {
 
 /**
  * Journey START location for DRIVING (house / prior place → …).
- * Resolves the segment before `_to_`, then travel.location.
+ * Prefer the origin event's DB location (e.g. downtime.location), not the task-name slug.
  */
 function drivingOriginFromTravelTask(task, associatedTasks, allTasksForDay) {
   if (!task) return null;
@@ -371,8 +378,6 @@ function drivingOriginFromTravelTask(task, associatedTasks, allTasksForDay) {
         allTasksForDay
       );
       if (fromSchedule) return fromSchedule;
-      const pretty = formatDestinationLabel(originSlug);
-      if (pretty) return pretty;
     }
   }
 
@@ -380,18 +385,31 @@ function drivingOriginFromTravelTask(task, associatedTasks, allTasksForDay) {
   if (head) {
     const fromHead = resolveEventLocationFromSchedule(head, associatedTasks, allTasksForDay);
     if (fromHead) return fromHead;
-    const token = head.split('_').pop();
-    if (token) {
-      const fromSchedule = resolveEventLocationFromSchedule(
-        token,
+    // Strip leading travel_/pickup_from_ wrappers and retry
+    const cleaned = head
+      .replace(/^travel_/i, '')
+      .replace(/^pickup_from_/i, '');
+    if (cleaned && cleaned !== head) {
+      const originSlug = getPickupOrigin({ task_name: `pickup_from_${cleaned}_x` }) || cleaned;
+      const fromClean = resolveEventLocationFromSchedule(
+        originSlug,
         associatedTasks,
         allTasksForDay
       );
-      if (fromSchedule) return fromSchedule;
+      if (fromClean) return fromClean;
     }
   }
 
-  // Earliest travel / transport row location is often the start of the journey
+  // Fall back to earliest pickup leg's place (same source as PICKING UP)
+  const pickups = (associatedTasks || [])
+    .filter((t) => isPickupTask(t))
+    .sort((a, b) => new Date(a.start_lb) - new Date(b.start_lb));
+  if (pickups[0]) {
+    const fromPickup = pickupLocationFromTask(pickups[0], associatedTasks, allTasksForDay);
+    if (fromPickup) return fromPickup;
+  }
+
+  // Earliest travel / transport row location
   if (task.location != null && String(task.location).trim()) {
     return String(task.location).trim();
   }

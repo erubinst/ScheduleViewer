@@ -110,7 +110,6 @@ def retrieve_scenario(scenario_name):
 # # Call the add_task function from tds.executer
 # updated_schedule = add_task(new_task, scenario_data, current_schedule)
 
-<<<<<<< HEAD
 # current_schedule = retrieve_current_schedule('p3_w3_scenario')
 # scenario_data = retrieve_scenario('p3_w3_scenario')
 # # Example new task to add (replace with frontend input eventually) assume task is df in format  ['task_name', 'required_capabilities', 'est', 'lft', 'duration']
@@ -124,5 +123,3 @@ def retrieve_scenario(scenario_name):
 # }])
 # # Call the add_task function from tds.executer
 # updated_schedule = add_task(new_task, scenario_data, current_schedule)
-=======
->>>>>>> 13049a2 (schedule viewer changes)
