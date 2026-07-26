@@ -463,13 +463,16 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
   // ── Presence event modal data ──────────────────────────────────────────────
   let transportModal = null;
   if (detailTask != null) {
-    const modalDayKey = toLocalDateString(new Date(detailTask.display_start || detailTask.start_lb));
-    const allTasksForDay = (tasks || []).filter(
-      (t) => {
-        const tv = t.display_start || t.start_lb;
-        return tv && toLocalDateString(new Date(tv)) === modalDayKey;
-      }
-    );
+    const modalDayKey = new Date(detailTask.display_start || detailTask.start_lb).toISOString().split('T')[0];
+    // Include overnight tasks (e.g. downtime that started the prior evening)
+    const allTasksForDay = (tasks || []).filter((t) => {
+      const start = t.display_start || t.start_lb;
+      const end = t.display_end || t.end_lb;
+      if (!start) return false;
+      const startDay = new Date(start).toISOString().split('T')[0];
+      const endDay = end ? new Date(end).toISOString().split('T')[0] : startDay;
+      return startDay === modalDayKey || endDay === modalDayKey;
+    });
     transportModal = buildDetailPopupTransportInfo(detailTask, currentUser, allTasksForDay, formatTime);
   }
 
@@ -480,12 +483,15 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
       (t) => (t.capability === 'travel') || normalizedTitle(t).startsWith('travel')
     ) ?? travelGroup.tasks[0];
     const modalDayKey = toLocalDateString(new Date(anchorTask.display_start || anchorTask.start_lb));
-    const allTasksForDay = (tasks || []).filter(
-      (t) => {
-        const tv = t.display_start || t.start_lb;
-        return tv && toLocalDateString(new Date(tv)) === modalDayKey;
-      }
-    );
+    // Include overnight tasks so downtime.location can resolve for DRIVING origin
+    const allTasksForDay = (tasks || []).filter((t) => {
+      const start = t.display_start || t.start_lb;
+      const end = t.display_end || t.end_lb;
+      if (!start) return false;
+      const startDay = toLocalDateString(new Date(start));
+      const endDay = end ? new Date(end).toISOString().split('T')[0] : startDay;
+      return startDay === modalDayKey || endDay === modalDayKey;
+    });
     travelModal = buildDetailPopupTransportInfo(
       anchorTask,
       currentUser,

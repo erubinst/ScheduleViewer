@@ -518,6 +518,62 @@ function App() {
     setInboxMsgs(prev => [newMsg, ...prev]);
   };
 
+  // ── Delete handler — notify via inbox only (does not remove the event yet) ──
+  const handleDeleteTask = async (task) => {
+    if (!token) return;
+
+    const eventName = task?.task_name ?? task?.taskName ?? 'Event';
+    const location = task?.location ?? 'unknown location';
+    const startVal = task?.display_start || task?.start_lb;
+    let startLabel = '';
+    if (startVal) {
+      try {
+        const d = new Date(startVal);
+        startLabel = d.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: 'UTC',
+        });
+      } catch (_) {
+        startLabel = String(startVal);
+      }
+    }
+
+    const subject = `Delete requested: ${eventName}`;
+    const message =
+      `${username} requested deletion of '${eventName}' at ${location}` +
+      (startLabel ? ` (scheduled ${startLabel} UTC).` : '.') +
+      ' The event has not been removed from the schedule yet.';
+
+    try {
+      const response = await fetch(apiUrl('/api/inbox/create'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          sender: 'Schedule System',
+          subject,
+          message,
+          task_name: eventName,
+          task_location: location,
+          scenario_name: currentSchedule?.scenario_name || null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.message) {
+        setInboxMsgs(prev => [data.message, ...prev]);
+      } else {
+        console.error('Failed to create delete inbox message:', data.error || response.status);
+        alert(data.error || 'Failed to send delete notification to inbox');
+      }
+    } catch (error) {
+      console.error('Delete inbox notification error:', error);
+      alert('Could not reach server to create inbox message');
+    }
+  };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'inbox' && token) {
@@ -829,7 +885,11 @@ function App() {
             <p className="schedule-subtitle">Welcome, {username}</p>
             <div className="current-schedule-card">
               {currentSchedule.tasks && currentSchedule.tasks.length > 0 ? (
-                <DayByDaySchedule tasks={currentSchedule.tasks} currentUser={username} />
+                <DayByDaySchedule
+                  tasks={currentSchedule.tasks}
+                  currentUser={username}
+                  onDeleteTask={handleDeleteTask}
+                />
               ) : (
                 <div className="empty-schedule">
                   <p>No schedule available yet.</p>
