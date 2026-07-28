@@ -323,9 +323,34 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
   const [detailTask, setDetailTask] = useState(null);
   const [travelGroup, setTravelGroup] = useState(null);
   const [deleteCandidate, setDeleteCandidate] = useState(null);
-
-  // Pending reschedule confirmation state
   const [pendingMove, setPendingMove] = useState(null);
+  const gridRef = useRef(null);
+
+  // Auto-scroll to current time on mount
+  useEffect(() => {
+    if (gridRef.current) {
+      setTimeout(() => {
+        const now = new Date();
+        const h = now.getUTCHours();
+        const m = now.getUTCMinutes();
+        const totalMinutes = h * 60 + m;
+        const startOffsetMinutes = DAY_START_HOUR_UTC * 60;
+        let yOffset = (totalMinutes - startOffsetMinutes) * (HOUR_HEIGHT_PX / 60);
+
+        if (yOffset < 0) yOffset = 0;
+        const maxOffset = VISIBLE_HOURS * HOUR_HEIGHT_PX;
+        if (yOffset > maxOffset) yOffset = maxOffset;
+
+        const gridTop = gridRef.current.getBoundingClientRect().top + window.scrollY;
+        
+        window.scrollTo({
+          top: gridTop + yOffset - (window.innerHeight / 3),
+          behavior: 'smooth'
+        });
+      }, 100); // Slight delay to ensure rendering is complete
+    }
+  }, []);
+
   /*
     pendingMove = {
       type: 'presence' | 'travel-group',
@@ -396,6 +421,31 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
       currentWeekDates.push(toLocalDateString(d));
     }
   }
+
+  const handleDateSelect = (e) => {
+    if (!e.target.value) return;
+    const parts = e.target.value.split('-');
+    const selected = new Date(parts[0], parts[1] - 1, parts[2]);
+    const now = new Date();
+    
+    if (isMobile) {
+      const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const diffTime = selected.getTime() - todayDate.getTime();
+      const diffDays = Math.round(diffTime / 86400000);
+      setDateOffset(diffDays);
+    } else {
+      const selectedSunday = new Date(selected);
+      selectedSunday.setDate(selectedSunday.getDate() - selectedSunday.getDay());
+      selectedSunday.setHours(0,0,0,0);
+      
+      const todaySunday = new Date(now);
+      todaySunday.setDate(todaySunday.getDate() - todaySunday.getDay());
+      todaySunday.setHours(0,0,0,0);
+      
+      const weekDiff = Math.round((selectedSunday.getTime() - todaySunday.getTime()) / (7 * 86400000));
+      setWeekOffset(weekDiff);
+    }
+  };
 
   const formatWeekRange = (start) => {
     const end = new Date(start);
@@ -881,12 +931,32 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
         <button className="week-nav-btn" onClick={() => isMobile ? setDateOffset(dateOffset - 1) : setWeekOffset(weekOffset - 1)}>
           {isMobile ? '←' : '← Previous Week'}
         </button>
-        <span className="week-indicator">
+        <span className="week-indicator" style={{ display: 'flex', alignItems: 'center' }}>
           {isMobile ? (() => {
             const d = new Date();
             d.setDate(d.getDate() + dateOffset);
             return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
           })() : formatWeekRange(startOfViewWeek)}
+          
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: '8px' }}>
+            <span role="img" aria-label="calendar" style={{ fontSize: '18px' }}>📅</span>
+            <input 
+              type="date" 
+              onChange={handleDateSelect}
+              onClick={(e) => {
+                if (e.target.showPicker) {
+                  e.target.showPicker();
+                }
+              }}
+              style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                opacity: 0,
+                width: '100%',
+                cursor: 'pointer'
+              }}
+            />
+          </div>
         </span>
         <button className="week-nav-btn" onClick={() => isMobile ? setDateOffset(dateOffset + 1) : setWeekOffset(weekOffset + 1)}>
           {isMobile ? '→' : 'Next Week →'}
@@ -894,7 +964,7 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
       </div>
 
       {/* ── Calendar grid ─────────────────────────────────────────────────── */}
-      <div className="calendar-grid">
+      <div className="calendar-grid" ref={gridRef}>
         {/* Time labels */}
         <div className="time-column">
           <div className="time-header"></div>

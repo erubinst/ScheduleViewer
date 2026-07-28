@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import GanttChart from './GanttChart';
 import DayByDaySchedule from './DayByDaySchedule';
@@ -304,6 +304,19 @@ function App() {
       loadAllResourceSchedules(token);
     }
   }, [activeTab, token]);
+
+  const headerRef = useRef(null);
+
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const observer = new ResizeObserver(() => {
+      if (headerRef.current) {
+        document.documentElement.style.setProperty('--header-height', `${headerRef.current.offsetHeight}px`);
+      }
+    });
+    observer.observe(headerRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const ganttDates = React.useMemo(() => {
     const tasks = allResourcesSchedule.tasks || [];
@@ -667,7 +680,7 @@ function App() {
   return (
     <div className="app">
       {/* Header */}
-      <div className="header-container">
+      <div className="header-container" ref={headerRef}>
         <div className="user-info">
           <span className="user-icon">👤</span>
           <span className="username-display">{username}</span>

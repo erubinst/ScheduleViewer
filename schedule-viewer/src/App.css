@@ -157,7 +157,6 @@
   border-radius: 12px;
   padding: 30px;
   margin-bottom: 30px;
-  overflow-x: auto;
 }
 
 .schedule-info {
@@ -727,6 +726,12 @@ input::placeholder {
   justify-content: center;
   gap: 16px;
   margin-bottom: 12px;
+  position: sticky;
+  top: var(--header-height, 70px);
+  z-index: 100;
+  background-color: #f8f9fa;
+  padding: 10px 0;
+  border-radius: 8px;
 }
 
 .week-nav-btn {
@@ -928,8 +933,6 @@ input::placeholder {
   border-radius: 12px;
   padding: 12px;
   margin-bottom: 16px;
-  overflow-x: auto;
-
 }
 .login-form {
   gap: 22px;
