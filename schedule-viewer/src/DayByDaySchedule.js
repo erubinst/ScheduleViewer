@@ -201,6 +201,8 @@ function DraggableBlock({
   top, height, startIso, endIso,
   minTopPx = 0, maxTopPx = Infinity,
   onDragComplete,
+  onMouseEnter,
+  onMouseLeave,
   style = {},
   className = '',
   children,
@@ -309,6 +311,8 @@ function DraggableBlock({
         userSelect: 'none',
       }}
       onMouseDown={handleMouseDown}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {children}
     </div>
@@ -325,6 +329,34 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
   const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [pendingMove, setPendingMove] = useState(null);
   const gridRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
+  const hoverTimeoutRef = useRef(null);
+
+  const handleMouseEnterTask = (e, item, type) => {
+    if (isMobile) return;
+    clearTimeout(hoverTimeoutRef.current);
+    if (type === 'presence') {
+      setDetailTask(item);
+      setTravelGroup(null);
+    } else {
+      setTravelGroup(item);
+      setDetailTask(null);
+    }
+    let x = e.clientX + 15;
+    let y = e.clientY + 15;
+    if (x + 350 > window.innerWidth) x = e.clientX - 365;
+    setHoverPos({ x, y });
+  };
+
+  const handleMouseLeaveTask = () => {
+    if (isMobile) return;
+    hoverTimeoutRef.current = setTimeout(() => {
+      setDetailTask(null);
+      setTravelGroup(null);
+    }, 300);
+  };
 
   // Auto-scroll to current time on mount
   useEffect(() => {
@@ -363,14 +395,13 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
       newTravelStart,
       newTravelEnd,
       // info for display:
+      // info for display:
       oldStartLabel,
       newStartLabel,
       dateLabel,
       affectedOthers,  // string | null
     }
   */
-
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -757,25 +788,41 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
       {/* ── Presence event detail modal ───────────────────────────────────── */}
       {detailTask != null && (
         <div
-          className="daybyday-modal-overlay"
+          className={isMobile ? "daybyday-modal-overlay" : ""}
+          style={isMobile ? undefined : {
+            position: 'fixed',
+            left: hoverPos.x,
+            top: Math.min(hoverPos.y, window.innerHeight - 300),
+            zIndex: 9999,
+            background: 'white',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+            borderRadius: '12px',
+            width: '320px',
+            pointerEvents: 'auto',
+          }}
           role="presentation"
-          onClick={() => setDetailTask(null)}
+          onClick={() => isMobile && setDetailTask(null)}
+          onMouseEnter={() => !isMobile && clearTimeout(hoverTimeoutRef.current)}
+          onMouseLeave={() => !isMobile && handleMouseLeaveTask()}
         >
           <div
-            className="daybyday-modal-panel daybyday-modal-panel--empty"
+            className={isMobile ? "daybyday-modal-panel daybyday-modal-panel--empty" : ""}
+            style={isMobile ? undefined : { padding: '16px' }}
             role="dialog"
             aria-modal="true"
             aria-label="Event details"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="daybyday-modal-close"
-              aria-label="Close"
-              onClick={() => setDetailTask(null)}
-            >
-              x
-            </button>
+            {isMobile && (
+              <button
+                type="button"
+                className="daybyday-modal-close"
+                aria-label="Close"
+                onClick={() => setDetailTask(null)}
+              >
+                x
+              </button>
+            )}
             <div className="daybyday-modal-content">
               <h1 style={{ fontWeight: 700, marginTop: 0 }}>
                 {taskDisplayName(detailTask) || '—'}
@@ -827,25 +874,41 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
       {/* ── Travel group detail modal ─────────────────────────────────────── */}
       {travelGroup != null && (
         <div
-          className="daybyday-modal-overlay"
+          className={isMobile ? "daybyday-modal-overlay" : ""}
+          style={isMobile ? undefined : {
+            position: 'fixed',
+            left: hoverPos.x,
+            top: Math.min(hoverPos.y, window.innerHeight - 300),
+            zIndex: 9999,
+            background: 'white',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+            borderRadius: '12px',
+            width: '320px',
+            pointerEvents: 'auto',
+          }}
           role="presentation"
-          onClick={() => setTravelGroup(null)}
+          onClick={() => isMobile && setTravelGroup(null)}
+          onMouseEnter={() => !isMobile && clearTimeout(hoverTimeoutRef.current)}
+          onMouseLeave={() => !isMobile && handleMouseLeaveTask()}
         >
           <div
-            className="daybyday-modal-panel daybyday-modal-panel--travel"
+            className={isMobile ? "daybyday-modal-panel daybyday-modal-panel--travel" : ""}
+            style={isMobile ? undefined : { padding: '16px' }}
             role="dialog"
             aria-modal="true"
             aria-label="Travel details"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="daybyday-modal-close"
-              aria-label="Close"
-              onClick={() => setTravelGroup(null)}
-            >
-              x
-            </button>
+            {isMobile && (
+              <button
+                type="button"
+                className="daybyday-modal-close"
+                aria-label="Close"
+                onClick={() => setTravelGroup(null)}
+              >
+                x
+              </button>
+            )}
             <div className="daybyday-modal-content">
               <h1 style={{ fontWeight: 700, marginTop: 0 }}>Travel</h1>
               <p><strong>START:</strong> {formatTime(travelGroup.display_start || travelGroup.start_lb)}</p>
@@ -1049,19 +1112,23 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
                         onDragComplete={(newStart, newEnd) =>
                           handlePresenceDragComplete(task, renderItems, dayTasks, newStart, newEnd)
                         }
+                        onMouseEnter={(e) => handleMouseEnterTask(e, task, 'presence')}
+                        onMouseLeave={handleMouseLeaveTask}
                       >
                         <div className="task-time-small">{formatTime(startVal)}</div>
                         <div className="task-name-small">{taskDisplayName(task) || '—'}</div>
                         {task.location && (
                           <div className="task-location-small">📍 {task.location}</div>
                         )}
-                        <button
-                          type="button"
-                          className="task-blue-detail-link"
-                          onClick={(e) => { e.stopPropagation(); setDetailTask(task); }}
-                        >
-                          Details
-                        </button>
+                        {isMobile && (
+                          <button
+                            type="button"
+                            className="task-blue-detail-link"
+                            onClick={(e) => { e.stopPropagation(); setDetailTask(task); }}
+                          >
+                            Details
+                          </button>
+                        )}
                       </DraggableBlock>
                     );
                   }
@@ -1087,14 +1154,18 @@ export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask,
                         onDragComplete={(newStart, newEnd) =>
                           handleTravelDragComplete(item, renderItems, newStart, newEnd)
                         }
+                        onMouseEnter={(e) => handleMouseEnterTask(e, item, 'travel-group')}
+                        onMouseLeave={handleMouseLeaveTask}
                       >
-                        <button
-                          type="button"
-                          className="task-blue-detail-link task-blue-detail-link--travel-only"
-                          onClick={(e) => { e.stopPropagation(); setTravelGroup(item); }}
-                        >
-                          Details
-                        </button>
+                        {isMobile && (
+                          <button
+                            type="button"
+                            className="task-blue-detail-link task-blue-detail-link--travel-only"
+                            onClick={(e) => { e.stopPropagation(); setTravelGroup(item); }}
+                          >
+                            Details
+                          </button>
+                        )}
                       </DraggableBlock>
                     );
                   }
