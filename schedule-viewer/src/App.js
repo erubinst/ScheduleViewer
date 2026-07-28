@@ -267,6 +267,15 @@ function App() {
     latestDueDate: '',
     location: '',
   });
+
+  const handleQuickAdd = (start, end) => {
+    setFormData((prev) => ({
+      ...prev,
+      earliestStartTime: start,
+      latestDueDate: end,
+    }));
+    setActiveTab('add');
+  };
   const [locationOptions, setLocationOptions] = useState([]);
   const [availableCapabilities, setAvailableCapabilities] = useState([]);
   const [selectedCapabilities, setSelectedCapabilities] = useState([]);
@@ -889,6 +898,7 @@ function App() {
                   tasks={currentSchedule.tasks}
                   currentUser={username}
                   onDeleteTask={handleDeleteTask}
+                  onQuickAdd={handleQuickAdd}
                 />
               ) : (
                 <div className="empty-schedule">

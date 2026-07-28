@@ -317,7 +317,7 @@ function DraggableBlock({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }) {
+export default function DayByDaySchedule({ tasks, currentUser, onRescheduleTask, onDeleteTask, onQuickAdd }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [dateOffset, setDateOffset] = useState(0); // for daily view
   const [detailTask, setDetailTask] = useState(null);
@@ -927,7 +927,28 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
                 </div>
               </div>
 
-              <div className="day-timeline" style={{ height: `${VISIBLE_HOURS * HOUR_HEIGHT_PX}px` }}>
+              <div
+                className="day-timeline"
+                style={{ height: `${VISIBLE_HOURS * HOUR_HEIGHT_PX}px`, cursor: onQuickAdd ? 'pointer' : 'default' }}
+                onClick={(e) => {
+                  if (!onQuickAdd) return;
+                  if (e.target !== e.currentTarget && !e.target.classList.contains('hour-line')) return; // Ignore clicks on events
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const y = e.clientY - rect.top;
+
+                  // Calculate the clicked time (snapped to 15m)
+                  let clickedMinutes = (y / HOUR_HEIGHT_PX) * 60;
+                  clickedMinutes = Math.floor(clickedMinutes / 15) * 15;
+
+                  const baseDate = new Date(dateStr + 'T00:00:00Z');
+                  const startMinutes = (DAY_START_HOUR_UTC * 60) + clickedMinutes;
+
+                  const startDate = new Date(baseDate.getTime() + startMinutes * 60000);
+                  const endDate = new Date(startDate.getTime() + 60 * 60000);
+
+                  onQuickAdd(startDate.toISOString().slice(0, 16), endDate.toISOString().slice(0, 16));
+                }}
+              >
                 {/* Hour grid lines */}
                 {[...Array(VISIBLE_HOURS)].map((_, i) => (
                   <div key={i} className="hour-line" style={{ top: `${i * HOUR_HEIGHT_PX}px` }} />
@@ -1018,5 +1039,3 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
     </div>
   );
 }
-
-export default DayByDaySchedule;

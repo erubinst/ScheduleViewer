@@ -14,10 +14,22 @@ import json
 import re
 import traceback
 import pandas as pd
+import math
+
+def clean_nans(obj):
+    if isinstance(obj, float) and math.isnan(obj):
+        return None
+    elif isinstance(obj, dict):
+        return {k: clean_nans(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_nans(v) for v in obj]
+    return obj
 
 from add_task import retrieve_current_schedule, retrieve_scenario
 from mongo_client import create_mongo_client
+# pyrefly: ignore [missing-import]
 from tds.executer import reload_tds, add_task, apply_assignment
+# pyrefly: ignore [missing-import]
 from tds.utils import export_schedule_to_df
 from pymongo.errors import ServerSelectionTimeoutError, AutoReconnect
 
@@ -60,6 +72,8 @@ user_epoch_store = {}
 
 def _serialize_value(value):
     if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
         return None
     if isinstance(value, (datetime, pd.Timestamp)):
         return value.isoformat()
@@ -847,17 +861,17 @@ def get_current_schedule():
                 {**t, 'person': t.get('person') or resource_name}
                 for t in schedule['tasks']
             ]
-            return jsonify({
+            return jsonify(clean_nans({
                 'username': username,
                 'scenario_name': schedule.get('scenario_name'),
                 'tasks': tasks_with_person
-            }), 200
+            })), 200
         else:
-            return jsonify({
+            return jsonify(clean_nans({
                 'username': username,
                 'scenario_name': None,
                 'tasks': []
-            }), 200
+            })), 200
 
     except Exception as e:
         print(f"Get schedule error: {str(e)}")
@@ -897,11 +911,11 @@ def get_all_resource_schedules():
                 tasks_with_person.append({**t, 'person': t.get('person') or rname})
 
         scenario_name = docs[0].get('scenario_name') if docs else None
-        return jsonify({
+        return jsonify(clean_nans({
             'scenario_name': scenario_name,
             'resource_names': resource_names,
             'tasks': tasks_with_person
-        }), 200
+        })), 200
 
     except Exception as e:
         print(f"Get all schedules error: {str(e)}")
