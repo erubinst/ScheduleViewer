@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import jwt
 import os
 import json
+import math
 import re
 import traceback
 import pandas as pd
@@ -68,7 +69,14 @@ def _serialize_value(value):
         return [_serialize_value(v) for v in value]
     if isinstance(value, dict):
         return {k: _serialize_value(v) for k, v in value.items()}
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
     if isinstance(value, (str, int, float, bool)):
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            return None
         return value
     return str(value)
 
@@ -348,11 +356,14 @@ def verify_user_token():
 
 def get_user_scenario_name(username):
     """Resolve the latest scenario name associated with a user/resource."""
-    rschedule = resource_schedules.find_one(
-        {'resource_name': {'$regex': f'^{username}$', '$options': 'i'}},
+    rschedules = resource_schedules.find(
+        {'resource_name': {'$regex': f'^{re.escape(username)}$', '$options': 'i'}},
         sort=[('created_at', -1)]
     )
-    return rschedule.get('scenario_name') if rschedule else None
+    for rschedule in rschedules:
+        if rschedule:
+            return rschedule.get('scenario_name')
+    return None
 
 
 def task_exists_in_scenario(scenario_name, task_name):
@@ -838,10 +849,12 @@ def get_current_schedule():
 
         username = payload['username']
 
-        schedule = resource_schedules.find_one(
-            {'resource_name': {'$regex': f'^{username}$', '$options': 'i'}},
+        schedules = list(resource_schedules.find(
+            {'resource_name': {'$regex': f'^{re.escape(username)}$', '$options': 'i'}},
             sort=[('created_at', -1)]
-        )
+        ))
+
+        schedule = next((doc for doc in schedules if doc.get('tasks')), schedules[0] if schedules else None)
 
         if schedule and schedule.get('tasks'):
             resource_name = schedule.get('resource_name') or username
@@ -849,17 +862,19 @@ def get_current_schedule():
                 {**t, 'person': t.get('person') or resource_name}
                 for t in schedule['tasks']
             ]
-            return jsonify({
+            print(f"[CURRENT_SCHEDULE] Returning {len(tasks_with_person)} tasks for user '{username}' from resource '{resource_name}'")
+            return jsonify(_serialize_value({
                 'username': username,
                 'scenario_name': schedule.get('scenario_name'),
                 'tasks': tasks_with_person
-            }), 200
-        else:
-            return jsonify({
-                'username': username,
-                'scenario_name': None,
-                'tasks': []
-            }), 200
+            })), 200
+
+        print(f"[CURRENT_SCHEDULE] No non-empty schedule found for user '{username}'. Matched docs: {len(schedules)}")
+        return jsonify(_serialize_value({
+            'username': username,
+            'scenario_name': None,
+            'tasks': []
+        })), 200
 
     except Exception as e:
         print(f"Get schedule error: {str(e)}")
@@ -899,11 +914,11 @@ def get_all_resource_schedules():
                 tasks_with_person.append({**t, 'person': t.get('person') or rname})
 
         scenario_name = docs[0].get('scenario_name') if docs else None
-        return jsonify({
+        return jsonify(_serialize_value({
             'scenario_name': scenario_name,
             'resource_names': resource_names,
             'tasks': tasks_with_person
-        }), 200
+        })), 200
 
     except Exception as e:
         print(f"Get all schedules error: {str(e)}")

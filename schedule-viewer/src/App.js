@@ -15,6 +15,7 @@ function App() {
   const [token, setToken] = useState(null);
   const [username, setUsername] = useState(null);
   const [showSignup, setShowSignup] = useState(false);
+  const [currentScheduleLoaded, setCurrentScheduleLoaded] = useState(false);
 
   // Login/Signup form state
   const [authUsername, setAuthUsername] = useState('');
@@ -63,6 +64,7 @@ function App() {
   // Load user's current schedule
   const loadCurrentSchedule = async (userToken) => {
     try {
+      setCurrentScheduleLoaded(false);
       const response = await fetch(apiUrl('/api/current-schedule'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,6 +76,8 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to load schedule:', error);
+    } finally {
+      setCurrentScheduleLoaded(true);
     }
   };
 
@@ -129,7 +133,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: userToken })
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json();
       if (response.ok) {
         setAllResourcesSchedule({
           tasks: data.tasks || [],
@@ -855,19 +859,13 @@ function App() {
                       </div>
                     )}
                   </div>
-                  {ganttTasksForDay.length > 0 ? (
-                    <GanttChart
-                      tasks={ganttTasksForDay}
-                      dateLabel={ganttSelectedDate
-                        ? new Date(ganttSelectedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-                        : null}
-                      resourceOrder={allResourcesSchedule.resource_names}
-                    />
-                  ) : (
-                    <div className="empty-schedule">
-                      <p>No events on this day ({ganttSelectedDate}). Use Prev/Next to switch day.</p>
-                    </div>
-                  )}
+                  <GanttChart
+                    tasks={ganttTasksForDay}
+                    dateLabel={ganttSelectedDate
+                      ? new Date(ganttSelectedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                      : null}
+                    resourceOrder={allResourcesSchedule.resource_names}
+                  />
                 </>
               ) : (
                 <div className="empty-schedule">
@@ -888,16 +886,18 @@ function App() {
             <h1>My Schedule</h1>
             <p className="schedule-subtitle">Welcome, {username}</p>
             <div className="current-schedule-card">
-              {currentSchedule.tasks && currentSchedule.tasks.length > 0 ? (
-                <DayByDaySchedule
-                  tasks={currentSchedule.tasks}
-                  currentUser={username}
-                  onDeleteTask={handleDeleteTask}
-                />
-              ) : (
+              {!currentScheduleLoaded ? (
                 <div className="empty-schedule">
-                  <p>No schedule available yet.</p>
+                  <p>Loading schedule...</p>
                 </div>
+              ) : (
+                <>
+                  <DayByDaySchedule
+                    tasks={currentSchedule.tasks || []}
+                    currentUser={username}
+                    onDeleteTask={handleDeleteTask}
+                  />
+                </>
               )}
             </div>
           </div>

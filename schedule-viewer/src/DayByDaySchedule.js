@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { includeTaskForDisplay } from './taskFilters';
 import { buildDetailPopupTransportInfo, isPickupTask, isDropoffTask, isTravelTask } from './taskRelationshipHelpers';
 
@@ -353,10 +353,6 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
 
   const allDates = Object.keys(tasksByDate).sort();
 
-  if (allDates.length === 0) {
-    return <div className="empty-schedule">No tasks scheduled</div>;
-  }
-
   const getSunday = (offset) => {
     const now = new Date();
     now.setDate(now.getDate() + offset * 7);
@@ -373,6 +369,28 @@ function DayByDaySchedule({ tasks, currentUser, onDeleteTask, onRescheduleTask }
     d.setDate(startOfViewWeek.getDate() + i);
     currentWeekDates.push(d.toISOString().split('T')[0]);
   }
+
+  const currentWeekHasTasks = currentWeekDates.some(dateStr => (tasksByDate[dateStr] || []).length > 0);
+
+  useEffect(() => {
+    if (weekOffset !== 0 || allDates.length === 0 || currentWeekHasTasks) {
+      return;
+    }
+
+    const earliestTaskDate = new Date(`${allDates[0]}T00:00:00Z`);
+    const earliestSunday = new Date(earliestTaskDate);
+    earliestSunday.setUTCDate(earliestSunday.getUTCDate() - earliestSunday.getUTCDay());
+    earliestSunday.setUTCHours(0, 0, 0, 0);
+
+    const currentSunday = new Date();
+    currentSunday.setDate(currentSunday.getDate() - currentSunday.getDay());
+    currentSunday.setHours(0, 0, 0, 0);
+
+    const weekDelta = Math.round((earliestSunday.getTime() - currentSunday.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    if (weekDelta !== 0) {
+      setWeekOffset(weekDelta);
+    }
+  }, [allDates, currentWeekHasTasks, weekOffset]);
 
   const formatDateHeader = (dateStr) => {
     const date = new Date(dateStr + 'T00:00:00Z');
