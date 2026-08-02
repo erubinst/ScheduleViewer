@@ -5,17 +5,20 @@ Run this once to populate the database with your scenario
 
 import json
 from datetime import datetime
+import os
+import sys
 
-from mongo_client import create_mongo_client
 
 # MongoDB connection (same as your backend)
 MONGO_URI = 'mongodb+srv://erubinst:dbUserPassword@scheduleviewer.3la41u6.mongodb.net/task_scheduler?retryWrites=true&w=majority&appName=ScheduleViewer'
 
 # Scenario configuration
-SCENARIO_NAME = 'p3_w3_scenario'
-REQUEST_FILE = '/Users/erubinst/ICLL/pythonSTN/tds/p3_w3_scenario/request.json'
-TRAVEL_FILE = '/Users/erubinst/ICLL/pythonSTN/tds/p3_w3_scenario/travel_matrix.json'
+SCENARIO_NAME = 'scenario_week_2026-05-03'
+REQUEST_FILE = '/Users/erubinst/ICLL/pythonSTN/tds/scenarios/p3_w3_scenario/request.json'
+TRAVEL_FILE = '/Users/erubinst/ICLL/pythonSTN/tds/scenarios/p3_w3_scenario/travel_matrix.json'
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from mongo_client import create_mongo_client
 
 def upload_scenario():
     """Upload scenario directly to MongoDB"""

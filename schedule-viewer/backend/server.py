@@ -55,6 +55,7 @@ inbox_messages = db.inbox_messages
 # Maps username -> TDS object for the duration of their session
 user_tds_store = {}
 user_epoch_store = {}
+user_pending_assignment_store = {}
 
 
 def _serialize_value(value):
@@ -773,6 +774,8 @@ def create_schedule():
             # operate on the updated state rather than the cached pre-change TDS.
             if username:
                 user_tds_store[username] = tds
+                if hasattr(assignments_df, 'iloc') and len(assignments_df) > 0:
+                    user_pending_assignment_store[username] = assignments_df.iloc[0].to_dict()
                 print(f"[SCHEDULE] Persisted modified TDS for user: {username}")
         except Exception as e:
             print(f"[SCHEDULE] add_task failed ({type(e).__name__}): {e}")
@@ -789,7 +792,6 @@ def create_schedule():
         if hasattr(assignments_df, 'head'):
             print(f"[SCHEDULE] Assignments DF:\n{assignments_df}")
 
-        tds = apply_assignment(tds, assignments_df)
         output_rows = normalize_add_task_result(assignments_df)
         print(f"[SCHEDULE] Output rows for response: {len(output_rows)}")
         if output_rows and len(output_rows) > 0:
@@ -938,19 +940,58 @@ def save_assignment_decision():
         scenario_name = get_user_scenario_name(username)
         
         if not accepted:
-            print(f"[ASSIGN_DECISION] Assignment rejected by {username}; rebuilding TDS from scenario")
+            print(f"[ASSIGN_DECISION] Assignment rejected by {username}; removing proposed task from TDS")
             try:
-                initialize_user_tds(username)
-                return jsonify({'message': 'Assignment rejected; TDS rebuilt from scenario'}), 200
+                tds = user_tds_store.get(username)
+                task_name = (task_data or {}).get('taskName')
+                task = tds.tasks.get(task_name) if tds and task_name else None
+
+                if task is not None:
+                    task.delete_task()
+                    user_tds_store[username] = tds
+                    user_pending_assignment_store.pop(username, None)
+                    return jsonify({'message': 'Assignment rejected; task removed from TDS'}), 200
+
+                user_pending_assignment_store.pop(username, None)
+                return jsonify({'message': 'Assignment rejected; no matching task found in TDS'}), 200
             except Exception as e:
-                print(f"[ASSIGN_DECISION] ⚠ Failed to rebuild TDS for {username}: {type(e).__name__}: {e}")
-                return jsonify({'message': 'Assignment rejected', 'tds_rebuild_error': str(e)}), 200
+                print(f"[ASSIGN_DECISION] ⚠ Failed to remove task from TDS for {username}: {type(e).__name__}: {e}")
+                user_pending_assignment_store.pop(username, None)
+                return jsonify({'message': 'Assignment rejected', 'tds_delete_error': str(e)}), 200
 
         # Step 1: Save task to resource_schedules (convert TDS assignments to MongoDB storage)
         print(f"[ASSIGN_DECISION] Processing accepted assignment for user {username}")
         epoch_date = user_epoch_store.get(username)
         
         selected_capabilities = data.get('selectedCapabilities') or []
+
+        tds = user_tds_store.get(username)
+        if tds is None:
+            print(f"[ASSIGN_DECISION] No cached TDS found for {username}; initializing")
+            initialize_user_tds(username)
+            tds = user_tds_store.get(username)
+        if tds is None:
+            return jsonify({'error': 'TDS is not initialized for this user'}), 400
+
+        try:
+            pending_assignment = user_pending_assignment_store.get(username)
+            if not pending_assignment:
+                return jsonify({'error': 'No pending assignment found for this user'}), 400
+
+            tds = apply_assignment(tds, pending_assignment)
+            user_tds_store[username] = tds
+            user_pending_assignment_store.pop(username, None)
+            print(f"[ASSIGN_DECISION] Applied accepted assignment to TDS for {username}")
+        except Exception as e:
+            print(f"[ASSIGN_DECISION] Failed to apply assignment to TDS: {type(e).__name__}: {e}")
+            traceback.print_exc()
+            return jsonify({
+                'message': 'Task could not be applied to schedule',
+                'error_detail': str(e),
+                'schedule_saved': False,
+                'inbox_created': 0
+            }), 400
+
         save_result = _save_accepted_task_to_schedule(username, scenario_name, task_data, epoch_date, assignments, selected_capabilities)
         print(f"[ASSIGN_DECISION] Save result: {save_result}")
         

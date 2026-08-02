@@ -370,12 +370,40 @@ function App() {
     }
   };
 
-  const handleBack = () => {
-    setShowSchedules(false);
+  const rejectAssignment = async ({ goBackToForm = false } = {}) => {
+    console.log('[ASSIGNMENT] User rejected generated assignment');
+    try {
+      const response = await fetch(apiUrl('/api/assignment-decision'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          accepted: false,
+          taskData: formData,
+          assignments: assignmentRows,
+          selectedCapabilities: selectedCapabilities
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error('Failed to notify server of rejection:', data.error || response.status);
+      } else {
+        // Refresh user's schedule from DB after the server removes the pending task.
+        await loadCurrentSchedule(token);
+      }
+    } catch (error) {
+      console.error('Error notifying server of rejection:', error);
+    }
+
     setAssignmentAccepted(false);
-    setAssignmentRejected(false);
+    setAssignmentRejected(!goBackToForm);
+    setShowSchedules(false);
     setAssignmentRows([]);
     setSelectedCapabilities([]);
+  };
+
+  const handleBack = async () => {
+    await rejectAssignment({ goBackToForm: true });
   };
 
   const handleAssignmentDecision = async (accepted) => {
@@ -413,31 +441,7 @@ function App() {
         alert('Could not save accepted assignment');
       }
     } else {
-      console.log('[ASSIGNMENT] User rejected generated assignment');
-      try {
-        const response = await fetch(apiUrl('/api/assignment-decision'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token,
-            accepted: false,
-            taskData: formData,
-            assignments: assignmentRows,
-            selectedCapabilities: selectedCapabilities
-          })
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          console.error('Failed to notify server of rejection:', data.error || response.status);
-        } else {
-          // Refresh user's schedule from DB (TDS rebuilt server-side)
-          await loadCurrentSchedule(token);
-        }
-      } catch (error) {
-        console.error('Error notifying server of rejection:', error);
-      }
-      setAssignmentAccepted(false);
-      setAssignmentRejected(true);
+      await rejectAssignment();
     }
   };
 
