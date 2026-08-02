@@ -445,6 +445,139 @@ function App() {
     }
   };
 
+  // ── Reschedule handler — called by DayByDaySchedule after user confirms move ──
+  const handleRescheduleTask = (pendingMove) => {
+    setCurrentSchedule(prev => {
+      const tasks = [...(prev.tasks || [])];
+
+      if (pendingMove.type === 'presence') {
+        const { task, newStart, newEnd, linkedTravel } = pendingMove;
+
+        // Delta in milliseconds
+        const deltaMs = new Date(newStart) - new Date(task.start_lb);
+
+        // Update the presence task
+        const updatedTasks = tasks.map(t => {
+          if (t === task || (t.start_lb === task.start_lb && t.end_lb === task.end_lb && t.task_name === task.task_name)) {
+            return { ...t, start_lb: newStart, end_lb: newEnd };
+          }
+          return t;
+        });
+
+        // Shift all tasks that belong to linked travel groups by the same delta
+        const travelTaskSet = new Set();
+        for (const tg of (linkedTravel || [])) {
+          for (const tt of tg.tasks) travelTaskSet.add(tt);
+        }
+
+        const finalTasks = updatedTasks.map(t => {
+          if (travelTaskSet.has(t)) {
+            const newTStart = new Date(new Date(t.start_lb).getTime() + deltaMs).toISOString();
+            const newTEnd = new Date(new Date(t.end_lb).getTime() + deltaMs).toISOString();
+            return { ...t, start_lb: newTStart, end_lb: newTEnd };
+          }
+          return t;
+        });
+
+        return { ...prev, tasks: finalTasks };
+      }
+
+      if (pendingMove.type === 'travel-group') {
+        const { travelItem, newTravelStart, newTravelEnd } = pendingMove;
+        const deltaMs = new Date(newTravelStart) - new Date(travelItem.start_lb);
+
+        const travelTaskSet = new Set(travelItem.tasks);
+        const finalTasks = tasks.map(t => {
+          if (travelTaskSet.has(t)) {
+            const newTStart = new Date(new Date(t.start_lb).getTime() + deltaMs).toISOString();
+            const newTEnd = new Date(new Date(t.end_lb).getTime() + deltaMs).toISOString();
+            return { ...t, start_lb: newTStart, end_lb: newTEnd };
+          }
+          return t;
+        });
+
+        return { ...prev, tasks: finalTasks };
+      }
+
+      return prev;
+    });
+
+    // ── Inbox notification ─────────────────────────────────────────────────
+    const { type, oldStartLabel, newStartLabel, dateLabel, affectedOthers } = pendingMove;
+    const eventName =
+      type === 'presence'
+        ? (pendingMove.task?.task_name ?? pendingMove.task?.taskName ?? 'Event')
+        : 'Travel';
+
+    const msgBody = `${eventName} moved from ${oldStartLabel} to ${newStartLabel} on ${dateLabel}.`;
+    const newMsg = {
+      id: Date.now(),
+      sender: 'Schedule System',
+      subject: `Schedule updated: ${eventName}`,
+      message: msgBody,
+      affectedOthers: affectedOthers || null,
+      timestamp: new Date().toISOString(),
+    };
+
+    setInboxMsgs(prev => [newMsg, ...prev]);
+  };
+
+  // ── Delete handler — notify via inbox only (does not remove the event yet) ──
+  const handleDeleteTask = async (task) => {
+    if (!token) return;
+
+    const eventName = task?.task_name ?? task?.taskName ?? 'Event';
+    const location = task?.location ?? 'unknown location';
+    const startVal = task?.display_start || task?.start_lb;
+    let startLabel = '';
+    if (startVal) {
+      try {
+        const d = new Date(startVal);
+        startLabel = d.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: 'UTC',
+        });
+      } catch (_) {
+        startLabel = String(startVal);
+      }
+    }
+
+    const subject = `Delete requested: ${eventName}`;
+    const message =
+      `${username} requested deletion of '${eventName}' at ${location}` +
+      (startLabel ? ` (scheduled ${startLabel} UTC).` : '.') +
+      ' The event has not been removed from the schedule yet.';
+
+    try {
+      const response = await fetch(apiUrl('/api/inbox/create'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          sender: 'Schedule System',
+          subject,
+          message,
+          task_name: eventName,
+          task_location: location,
+          scenario_name: currentSchedule?.scenario_name || null,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.message) {
+        setInboxMsgs(prev => [data.message, ...prev]);
+      } else {
+        console.error('Failed to create delete inbox message:', data.error || response.status);
+        alert(data.error || 'Failed to send delete notification to inbox');
+      }
+    } catch (error) {
+      console.error('Delete inbox notification error:', error);
+      alert('Could not reach server to create inbox message');
+    }
+  };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'inbox' && token) {
@@ -756,7 +889,11 @@ function App() {
             <p className="schedule-subtitle">Welcome, {username}</p>
             <div className="current-schedule-card">
               {currentSchedule.tasks && currentSchedule.tasks.length > 0 ? (
-                <DayByDaySchedule tasks={currentSchedule.tasks} currentUser={username} />
+                <DayByDaySchedule
+                  tasks={currentSchedule.tasks}
+                  currentUser={username}
+                  onDeleteTask={handleDeleteTask}
+                />
               ) : (
                 <div className="empty-schedule">
                   <p>No schedule available yet.</p>

@@ -1,6 +1,28 @@
 /**
  * Task relationship helpers for transport / pickup / dropoff in the schedule UI.
  * Uses task_name | taskName | order and resource | resource_name.
+ * 
+ * typical task looks like the following:
+ * {
+      resource ==>  person assigned to task (?)
+      task_name: "daughterlunch",
+      capability: "goose_presence",
+      location: "Church",
+
+      start_lb ==> earliest possible start time 
+      start_ub ==> latest possible start time
+      end_lb ==> earliest possible end time
+      end_ub ==> latest possible end time
+
+      display_start ==> start time to display to the user
+      display_end ==> end time to display to the user
+    }
+    
+  goals of this file are to provide info for:
+  - detail popup modal
+  - transportation displays
+  - driver/passenger determination
+  - pickup/dropoff grouping
  */
 
 function taskNameRaw(task) {
@@ -285,11 +307,13 @@ function normEventKey(s) {
 
 /**
  * Find a real-world location for an event encoded in travel/dropoff names
- * (e.g. dvintagevisit → row `gvintagevisit` with location "Vintage").
+ * (e.g. dvintagevisit → row `gvintagevisit` with location "Vintage",
+ * or denim_downtime_2640 → that downtime row's location "SeniorApartments").
  */
 function resolveEventLocationFromSchedule(eventSlug, associatedTasks, allTasksForDay) {
   if (!eventSlug) return null;
-  const target = normEventKey(String(eventSlug).toLowerCase());
+  const targetRaw = String(eventSlug).toLowerCase().trim();
+  const target = normEventKey(targetRaw);
   if (!target) return null;
 
   const pool = [];
@@ -303,6 +327,12 @@ function resolveEventLocationFromSchedule(eventSlug, associatedTasks, allTasksFo
     const loc = t.location != null && String(t.location).trim();
     if (!loc) continue;
 
+    const raw = taskNameRaw(t).toLowerCase();
+    // Exact task_name match — needed for downtime ids (denim_downtime_2640)
+    if (raw === targetRaw || normEventKey(raw) === target) {
+      return String(t.location).trim();
+    }
+
     if (isDropoffTask(t)) {
       const ev = getDropoffEvent(t);
       if (ev && normEventKey(ev) === target) {
@@ -311,9 +341,8 @@ function resolveEventLocationFromSchedule(eventSlug, associatedTasks, allTasksFo
     }
 
     if (isPresenceTask(t)) {
-      const raw = taskNameRaw(t).toLowerCase();
       const first = raw.split('_')[0];
-      if (normEventKey(raw) === target || normEventKey(first) === target) {
+      if (normEventKey(first) === target) {
         return String(t.location).trim();
       }
     }
@@ -321,7 +350,115 @@ function resolveEventLocationFromSchedule(eventSlug, associatedTasks, allTasksFo
   return null;
 }
 
-/** Where this travel row is headed: prefer visit/dropoff location from schedule, then travel.location, then slug text. */
+/** Text before last `_to_` in a travel / composite task name */
+function extractSegmentBeforeTo(name) {
+  const lower = String(name || '').toLowerCase();
+  const key = '_to_';
+  const idx = lower.lastIndexOf(key);
+  if (idx < 0) return null;
+  return String(name).slice(0, idx);
+}
+
+/**
+ * Journey START location for DRIVING (house / prior place → …).
+ * Prefer the origin event's DB location (e.g. downtime.location), not the task-name slug.
+ */
+function drivingOriginFromTravelTask(task, associatedTasks, allTasksForDay) {
+  if (!task) return null;
+  const raw = taskNameRaw(task);
+  const head = extractSegmentBeforeTo(raw);
+
+  // e.g. head contains "pickup_from_denim_downtime_5520_denim"
+  if (head && head.toLowerCase().includes('pickup_from')) {
+    const originSlug = getPickupOrigin({ task_name: head });
+    if (originSlug) {
+      const fromSchedule = resolveEventLocationFromSchedule(
+        originSlug,
+        associatedTasks,
+        allTasksForDay
+      );
+      if (fromSchedule) return fromSchedule;
+    }
+  }
+
+  // Generic slug from head (e.g. downtime / home event id before _to_)
+  if (head) {
+    const fromHead = resolveEventLocationFromSchedule(head, associatedTasks, allTasksForDay);
+    if (fromHead) return fromHead;
+    // Strip leading travel_/pickup_from_ wrappers and retry
+    const cleaned = head
+      .replace(/^travel_/i, '')
+      .replace(/^pickup_from_/i, '');
+    if (cleaned && cleaned !== head) {
+      const originSlug = getPickupOrigin({ task_name: `pickup_from_${cleaned}_x` }) || cleaned;
+      const fromClean = resolveEventLocationFromSchedule(
+        originSlug,
+        associatedTasks,
+        allTasksForDay
+      );
+      if (fromClean) return fromClean;
+    }
+  }
+
+  // Fall back to earliest pickup leg's place (same source as PICKING UP)
+  const pickups = (associatedTasks || [])
+    .filter((t) => isPickupTask(t))
+    .sort((a, b) => new Date(a.start_lb) - new Date(b.start_lb));
+  if (pickups[0]) {
+    const fromPickup = pickupLocationFromTask(pickups[0], associatedTasks, allTasksForDay);
+    if (fromPickup) return fromPickup;
+  }
+
+  // Earliest travel / transport row location
+  if (task.location != null && String(task.location).trim()) {
+    return String(task.location).trim();
+  }
+
+  return null;
+}
+
+/**
+ * Human-readable pickup place for PICKING UP lines (task.location or origin slug).
+ */
+function pickupLocationFromTask(task, associatedTasks, allTasksForDay) {
+  if (!task) return null;
+  if (task.location != null && String(task.location).trim()) {
+    return String(task.location).trim();
+  }
+  const originSlug = getPickupOrigin(task);
+  if (originSlug) {
+    const fromSchedule = resolveEventLocationFromSchedule(
+      originSlug,
+      associatedTasks,
+      allTasksForDay
+    );
+    if (fromSchedule) return fromSchedule;
+    return formatDestinationLabel(originSlug);
+  }
+  return null;
+}
+
+/**
+ * Human-readable dropoff place for DROPPING OFF lines (task.location or event slug).
+ */
+function dropoffLocationFromTask(task, associatedTasks, allTasksForDay) {
+  if (!task) return null;
+  if (task.location != null && String(task.location).trim()) {
+    return String(task.location).trim();
+  }
+  const ev = getDropoffEvent(task);
+  if (ev) {
+    const fromSchedule = resolveEventLocationFromSchedule(ev, associatedTasks, allTasksForDay);
+    if (fromSchedule) return fromSchedule;
+    return formatDestinationLabel(ev);
+  }
+  return null;
+}
+
+/**
+ * Journey END location for DRIVING (… → event / dropoff place).
+ * Prefer visit/dropoff location from schedule, then travel.location, then slug text.
+ */
 function drivingDestinationFromTravelTask(task, associatedTasks, allTasksForDay) {
   if (!task) return null;
   const raw = taskNameRaw(task);
@@ -446,6 +583,7 @@ function userInvolvedInLeg(task, user) {
 
 /**
  * Build modal transport lines scoped to the anchor task + logged-in user.
+ * DRIVING = journey start → end locations; PICKING UP / DROPPING OFF use display times + places.
  *
  * @param {object} detailTask - anchor row (presence event or travel leg in a cluster)
  * @param {string|null|undefined} currentUser
@@ -456,6 +594,9 @@ function userInvolvedInLeg(task, user) {
  */
 export function buildDetailPopupTransportInfo(detailTask, currentUser, allTasksForDay, formatTime, scopeTasks) {
   const fmt = (iso) => (iso ? formatTime(iso) : '—');
+  // Prefer display_start for any time shown in the details popup
+  const displayStart = (task) => task?.display_start || task?.start_lb;
+  const fmtStart = (task) => fmt(displayStart(task));
   const user = String(currentUser ?? '').toLowerCase();
 
   if (!user) {
@@ -492,18 +633,31 @@ export function buildDetailPopupTransportInfo(detailTask, currentUser, allTasksF
       ? [...scopeTasks]
       : (allTasksForDay || []).filter((t) => taskAssociatedWithDetailEvent(t, detailTask, slugs));
 
-  // Earliest travel start for this user among associated tasks (scoped cluster = correct window).
+  // Journey start (earliest travel) / end (latest travel) locations for DRIVING
   let drivingStartMs = null;
-  let drivingStartTime = null;
+  let drivingEndMs = null;
+  let drivingOrigin = null;
   let drivingDestination = null;
 
+  /** Record origin from earliest travel leg and destination from latest travel leg. */
   const noteDrivingTravel = (task) => {
     if (!isTravelCapabilityTask(task) || resourceRaw(task).toLowerCase() !== user) return;
     const ts = new Date(task.start_lb).getTime();
+    const te = new Date(task.end_lb || task.start_lb).getTime();
+
     if (drivingStartMs == null || ts < drivingStartMs) {
       drivingStartMs = ts;
-      drivingStartTime = fmt(task.start_lb);
-      drivingDestination = drivingDestinationFromTravelTask(task, associatedTasks, allTasksForDay);
+      drivingOrigin = drivingOriginFromTravelTask(
+        task,
+        associatedTasks,
+        allTasksForDay
+      );
+    }
+
+    const dest = drivingDestinationFromTravelTask(task, associatedTasks, allTasksForDay);
+    if (dest && (drivingEndMs == null || te >= drivingEndMs)) {
+      drivingEndMs = te;
+      drivingDestination = dest;
     }
   };
 
@@ -524,7 +678,7 @@ export function buildDetailPopupTransportInfo(detailTask, currentUser, allTasksF
     if (!task) return;
     if (!tasksAreSameEventRow(task, detailTask) && !userInvolvedInLeg(task, user)) return;
 
-    // Travel leg — earliest start among scoped tasks sets DRIVING time
+    // Travel leg — earliest / latest legs set DRIVING start → end locations
     if (isTravelCapabilityTask(task) && resourceRaw(task).toLowerCase() === user) {
       noteDrivingTravel(task);
     }
@@ -538,11 +692,15 @@ export function buildDetailPopupTransportInfo(detailTask, currentUser, allTasksF
         who.toLowerCase() !== user &&
         !personAlreadyInBucket('pickingUp', who)
       ) {
-        pushUnique('pickingUp', `${who} at ${fmt(task.start_lb)}`);
+        const loc = pickupLocationFromTask(task, associatedTasks, allTasksForDay);
+        pushUnique(
+          'pickingUp',
+          loc ? `${who} at ${fmtStart(task)} from ${loc}` : `${who} at ${fmtStart(task)}`
+        );
       }
     }
 
-    // Pickup leg — only count it if this pickup is for THIS event
+    // Pickup leg — person + display time + pickup location
     if (isPickupTask(task)) {
       const who = getTransportedPerson(task);
       const res = resourceRaw(task).toLowerCase();
@@ -554,19 +712,29 @@ export function buildDetailPopupTransportInfo(detailTask, currentUser, allTasksF
           who.toLowerCase() !== user &&
           !personAlreadyInBucket('pickingUp', who)
         ) {
-          pushUnique('pickingUp', `${who} at ${fmt(task.start_lb)}`);
+          const loc = pickupLocationFromTask(task, associatedTasks, allTasksForDay);
+          pushUnique(
+            'pickingUp',
+            loc ? `${who} at ${fmtStart(task)} from ${loc}` : `${who} at ${fmtStart(task)}`
+          );
         }
       }
       if (who && who.toLowerCase() === user && res && res !== user) {
-        pushUnique('pickedUpBy', `${resourceRaw(task)} at ${fmt(task.start_lb)}`);
+        const loc = pickupLocationFromTask(task, associatedTasks, allTasksForDay);
+        pushUnique(
+          'pickedUpBy',
+          loc
+            ? `${resourceRaw(task)} at ${fmtStart(task)} from ${loc}`
+            : `${resourceRaw(task)} at ${fmtStart(task)}`
+        );
       }
     }
 
-    // Dropoff leg — only count if this dropoff is for THIS event
+    // Dropoff leg — person + display time + dropoff location
     if (isDropoffTask(task)) {
-      const dest = getDropoffEvent(task);
       const who = getTransportedPerson(task);
       const res = resourceRaw(task).toLowerCase();
+      const loc = dropoffLocationFromTask(task, associatedTasks, allTasksForDay);
 
       if (
         res === user &&
@@ -575,10 +743,18 @@ export function buildDetailPopupTransportInfo(detailTask, currentUser, allTasksF
         who.toLowerCase() !== user &&
         !personAlreadyInBucket('droppingOff', who)
       ) {
-        pushUnique('droppingOff', `${who}${dest ? ` → ${dest}` : ''} at ${fmt(task.start_lb)}`);
+        pushUnique(
+          'droppingOff',
+          loc ? `${who} at ${fmtStart(task)} → ${loc}` : `${who} at ${fmtStart(task)}`
+        );
       }
       if (who && who.toLowerCase() === user && res && res !== user) {
-        pushUnique('droppedOffBy', `${resourceRaw(task)} at ${fmt(task.start_lb)}`);
+        pushUnique(
+          'droppedOffBy',
+          loc
+            ? `${resourceRaw(task)} at ${fmtStart(task)} → ${loc}`
+            : `${resourceRaw(task)} at ${fmtStart(task)}`
+        );
       }
     }
   };
@@ -595,28 +771,16 @@ export function buildDetailPopupTransportInfo(detailTask, currentUser, allTasksF
   const isDriving =
     drivingStartMs != null || buckets.pickingUp.length > 0 || buckets.droppingOff.length > 0;
 
-  let drivingDisplay = drivingStartTime;
-  if (isDriving && drivingDisplay == null) {
-    const legs = associatedTasks.filter(
-      (t) =>
-        resourceRaw(t).toLowerCase() === user &&
-        (isPickupTask(t) ||
-          isDropoffTask(t) ||
-          (isTransportCapabilityTask(t) && !isTravelCapabilityTask(t)))
-    );
-    legs.sort((a, b) => new Date(a.start_lb) - new Date(b.start_lb));
-    if (legs[0]) drivingDisplay = fmt(legs[0].start_lb);
-  }
-
-  // If no `_to_` destination yet (e.g. driving time came from pickup only), infer from dropoff row
+  // Destination fallback: last travel leg, then dropoff place, then presence location
   if (isDriving && !drivingDestination) {
     const travelLegs = associatedTasks.filter(
       (t) => isTravelCapabilityTask(t) && resourceRaw(t).toLowerCase() === user
     );
     travelLegs.sort((a, b) => new Date(a.start_lb) - new Date(b.start_lb));
-    if (travelLegs[0]) {
+    const lastTravel = travelLegs[travelLegs.length - 1];
+    if (lastTravel) {
       drivingDestination = drivingDestinationFromTravelTask(
-        travelLegs[0],
+        lastTravel,
         associatedTasks,
         allTasksForDay
       );
@@ -626,23 +790,36 @@ export function buildDetailPopupTransportInfo(detailTask, currentUser, allTasksF
     const dropoffs = associatedTasks
       .filter((t) => isDropoffTask(t) && resourceRaw(t).toLowerCase() === user)
       .sort((a, b) => new Date(a.start_lb) - new Date(b.start_lb));
-    const d0 = dropoffs[0];
+    const d0 = dropoffs[dropoffs.length - 1] || dropoffs[0];
     if (d0) {
-      const ev = getDropoffEvent(d0);
-      drivingDestination =
-        (ev && resolveEventLocationFromSchedule(ev, associatedTasks, allTasksForDay)) ||
-        (d0.location && String(d0.location).trim()) ||
-        (ev && formatDestinationLabel(ev)) ||
-        null;
+      drivingDestination = dropoffLocationFromTask(d0, associatedTasks, allTasksForDay);
+    }
+  }
+  if (isDriving && !drivingDestination && detailTask?.location) {
+    const loc = String(detailTask.location).trim();
+    if (loc) drivingDestination = loc;
+  }
+
+  // Origin fallback if noteDrivingTravel didn't resolve one
+  if (isDriving && !drivingOrigin) {
+    const travelLegs = associatedTasks.filter(
+      (t) => isTravelCapabilityTask(t) && resourceRaw(t).toLowerCase() === user
+    );
+    travelLegs.sort((a, b) => new Date(a.start_lb) - new Date(b.start_lb));
+    if (travelLegs[0]) {
+      drivingOrigin = drivingOriginFromTravelTask(
+        travelLegs[0],
+        associatedTasks,
+        allTasksForDay
+      );
     }
   }
 
+  // Only show a full journey path when both ends are known (avoids "— → Church")
   const drivingLine =
-    isDriving && (drivingDisplay != null || drivingDestination)
-      ? `${drivingDisplay ?? 'Yes'}${drivingDestination ? ` → ${drivingDestination}` : ''}`
-      : isDriving
-        ? (drivingDisplay ?? 'Yes')
-        : 'N/A';
+    isDriving && drivingOrigin && drivingDestination
+      ? `${drivingOrigin} → ${drivingDestination}`
+      : 'N/A';
 
   return {
     drivingLines: [drivingLine],
